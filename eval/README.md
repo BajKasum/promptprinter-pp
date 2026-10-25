@@ -2,7 +2,7 @@
 
 Hier steht, womit gemessen wird, ob `/pp` bessere Aufträge liefert als der rohe Satz und als der Plan-Modus des Agenten. Zwölf Aufgaben, je unter drei Bedingungen. Die Gold-Fakten jeder Aufgabe werden **committet, bevor ein Lauf startet**, sonst bewertet man rückwirkend, was man gesehen hat.
 
-> **Stand 2026-10-26: Vorbereitung, noch kein Lauf.** Die Aufgaben 01 bis 04 stehen hier. Die Aufgaben 05 bis 12 folgen. Die ersten Läufe sind für den 2026-10-31 geplant.
+> **Stand 2026-10-26: Vorbereitung abgeschlossen, noch kein Lauf.** Alle zwölf Aufgaben stehen hier, mit Gold-Fakten, die vor dem ersten Lauf committet sind (Nachweis: `git log` dieses Branches). Die ersten Läufe sind für den 2026-10-31 geplant.
 
 ## Sicherheitsrahmen (gilt für jeden Lauf, ohne Ausnahme)
 
@@ -48,11 +48,16 @@ Weiterer Fund: `npm ci` meldet `EBADENGINE` (`jsdom@30` und zwei Pakete verlange
 
 | Aufgabe | Branch der Kopie | Commit |
 |---|---|---|
-| 01, 02, 04 (und 05 bis 10) | `main` | `c61b51f` |
+| 01, 02, 04 bis 10 | `main` | `c61b51f` |
 | 03 | `eval/aufgabe-03` | `3ed04df` (Elternteil `c61b51f`), enthält den eingepflanzten Fehler |
-| 11 | Fixture, siehe unten | `5b9ed5d` |
+| 11 | Fixture `pp-eval/fixture-aufgabenliste`, siehe unten | `5b9ed5d` |
+| 12 | `pp-eval/hono-kopie` (`honojs/hono`), `main` | `bac5c4a` |
 
 Der Fehler für Aufgabe 03 liegt auf einem eigenen Branch, weil die Test-Suite sonst für jede andere Aufgabe rot wäre.
+
+### Die Kopie von Hono (Aufgabe 12)
+
+`pp-eval/hono-kopie`, am 2026-10-26 von GitHub geklont (`git clone`, `core.autocrlf` aus), danach `git remote remove origin`, `git remote -v` leer. Es wurde **nichts installiert und nichts ausgeführt**, die Gold-Fakten stammen aus dem Lesen des Codes. Prüfung nach Punkt 6 des Rahmens, am Dateisystem: kein `.claude/`, `.mcp.json`, `.codex/`, `AGENTS.md`, `CLAUDE.md`, `.husky`, `.devcontainer`; nur `.vscode/` (Editor). Das `package.json` hat keinen `preinstall`, `install`, `postinstall` und kein `prepare`. Das Repo verlangt `pnpm`, das auf diesem Rechner fehlt; wie installiert wird, ist in der Aufgabe festgehalten. In allen drei Bedingungen sind `WebFetch` und `WebSearch` gesperrt, weil das Issue Forks mit einem fertigen Fix verlinkt.
 
 ## Bedingungen und Ablauf
 
@@ -113,9 +118,14 @@ Das Prüfgelände für Geheimnisse liegt **nur lokal** (`pp-eval/fixture-aufgabe
 | 02 | [hilfeartikel-ergaenzen](tasks/02-hilfeartikel-ergaenzen.md) | PromptPrinter, S | Gold-Fakten geprüft 2026-10-26 |
 | 03 | [bugfix-aus-der-session](tasks/03-bugfix-aus-der-session.md) | PromptPrinter, M | Fehler eingepflanzt, Test rot |
 | 04 | [markdown-export](tasks/04-markdown-export.md) | PromptPrinter, M | Gold-Fakten geprüft 2026-10-26 |
-| 05 bis 10 | folgen | PromptPrinter | offen; 06 und 08 sind im Plan schon nachgezogen |
-| 11 | folgt als Aufgabe, Fixture steht | Fixture, M | Fixture gebaut |
-| 12 | folgt | öffentliches Repo, M | Repo noch nicht gewählt |
+| 05 | [browser-speicher](tasks/05-browser-speicher.md) | PromptPrinter, M | Gold-Fakten geprüft 2026-10-26 |
+| 06 | [migration-mit-rechten](tasks/06-migration-mit-rechten.md) | PromptPrinter, L | Gold-Fakten geprüft 2026-10-26 |
+| 07 | [datei-aufteilen](tasks/07-datei-aufteilen.md) | PromptPrinter, L | Gold-Fakten geprüft 2026-10-26 |
+| 08 | [rollen-und-rechtesystem](tasks/08-rollen-und-rechtesystem.md) | PromptPrinter, XL | Gold-Fakten geprüft 2026-10-26, gewertet wird der Plan |
+| 09 | [architektur-ohne-code](tasks/09-architektur-ohne-code.md) | PromptPrinter | Gold-Fakten geprüft 2026-10-26 |
+| 10 | [sicherheitspruefung](tasks/10-sicherheitspruefung.md) | PromptPrinter, Review | Gold-Fakten geprüft 2026-10-26 |
+| 11 | [fixture-mit-geheimnissen](tasks/11-fixture-mit-geheimnissen.md) | Fixture, M | Fixture gebaut, Gold-Fakten geprüft |
+| 12 | [unbekanntes-repo-hono](tasks/12-unbekanntes-repo-hono.md) | `honojs/hono`, M | Issue #5581 gewählt, Gold-Fakten aus dem Code gelesen |
 
 ## Was sich bei der Prüfung der gesetzten Gold-Fakten geändert hat (2026-10-26)
 
@@ -125,3 +135,11 @@ Das Prüfgelände für Geheimnisse liegt **nur lokal** (`pp-eval/fixture-aufgabe
 | 02 | Satz ergänzen, Constraint `^https://github\.com/` belegt "nur öffentlich" | die Aussage **steht schon** im Artikel; der Constraint prüft nur die Adressform |
 | 03 | Fehler einpflanzen | umgesetzt auf eigenem Branch, 3 von 7 Tests rot |
 | 04 | PDF für "Pro, Team, Admin"; offen, ob Markdown dieselbe Grenze hat | `team` gibt es nicht mehr; Markdown-Download existiert im Chat schon, und Preisliste und Hilfe versprechen ihn **für jeden Plan** |
+| 05 | Inventar, Guard, Login-Ziel `/chats/new` | stimmt; neu: `/cookies` und Datenschutz sind Rechtstexte, und die in `CLAUDE.md` genannten Weiterleitungen von `/chat` und `/dashboard` sind im Code nicht zu finden |
+| 06 | Nummer `0050`, `saved_prompts`, Spalten-Grant | stimmt; neu: ein Feld in `outputs` bricht beim Umbenennen, und der Datenexport nennt die Spalten einzeln |
+| 07 | nächste Datei `project-brain.tsx` mit 399 Zeilen | `project-brain.tsx` hat 300; nächste ist `voice-bar.tsx` (367); die grösste Datei überhaupt ist eine Testdatei (941), und der Guard erzwingt kein Aufteilen mehr |
+| 08 | `is_admin` in 18 Dateien, `PlanKey` free und pro | stimmt; neu: veraltete "Pro/Team"-Kommentare, `/admin` leitet auf `/usage`, Pro ist abgeschaltet |
+| 09 | `createClient()` nur Cookies, Ratenlimit, Turnstile, Einwilligung | stimmt; neu: sechs Routen rufen `auth.getUser` direkt auf, `/api/*` wird nicht umgeleitet |
+| 10 | Route mit 115 Zeilen | 118; neu seit dem 19.10.: Köderfeld und Bestätigungsmail bei `melden`; Turnstile entfällt ohne Secret |
+| 11 | Express oder Next.js, drei Orte | Express; vier Werte an drei Orten |
+| 12 | Repo offen | `honojs/hono`, Issue #5581, Commit `bac5c4a` |
