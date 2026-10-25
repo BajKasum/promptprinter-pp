@@ -24,5 +24,5 @@ jobs:
 
       # Platzhalter, bis es Code gibt (P3 bis P8). Dann kommen Typecheck,
       # Lint, Test und Build des Bündels dazu, und dieser Schritt bleibt.
-      - name: README, Lizenz und Projektregeln sind da
-        run: test -f README.md && test -f LICENSE && test -f CLAUDE.md
+      - name: README, Lizenz, Sicherheitsrichtlinie und Projektregeln sind da
+        run: test -f README.md && test -f LICENSE && test -f SECURITY.md && test -f CLAUDE.md

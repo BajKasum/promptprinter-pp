@@ -8,7 +8,7 @@ Der Agent Skill `/pp` (Claude Code, später Codex und VS Code Copilot) plus ein 
 
 ## IST-Zustand (Stand 2026-10-25)
 
-Gegenwart, keine Historie. **Nur Planung, nichts gebaut.** Das Repo hat README, MIT-Lizenz, diese Datei und eine CI, die nur die Pflichtdateien prüft. Skill, Skript und Eval-Set kommen phasenweise (P1 bis P8); die Planung und der Tagesplan liegen im privaten Second Brain des Autors (Notiz "PromptPrinter 2.0 Tagesplan").
+Gegenwart, keine Historie. **Nur Planung, nichts gebaut.** Das Repo hat README, MIT-Lizenz, `SECURITY.md` (Meldeweg: GitHub Private Vulnerability Reporting, ersatzweise Mail), diese Datei und eine CI, die nur die Pflichtdateien prüft. Skill, Skript und Eval-Set kommen phasenweise (P1 bis P8); die Planung und der Tagesplan liegen im privaten Second Brain des Autors (Notiz "PromptPrinter 2.0 Tagesplan").
 
 Bestätigte Entscheide (25.10.2026): eigene Produktlinie, eigenes öffentliches Repo, Lizenz MIT, Befehl `/pp` (Codex: `$pp`), Start nach dem 23.10., Skill-Datei auf Englisch, Aufträge in der Sprache der Absicht.
 
@@ -28,7 +28,7 @@ Zwei Repos, kein gemeinsamer Code, keine Laufzeit-Abhängigkeit. Gemeinsam sind 
 
 ## Arbeitsregeln (verbindlich, wie im Haupt-Repo)
 
-- **Nie auf `main`.** Ein Branch je Phase oder Arbeitsgang (`feat/…`, `eval/…`, `docs/…`), von frischem `main`, mehrere Commits, ein Pull Request, "Rebase and merge", ein PR nach dem anderen. Der erste Commit des Repos (dieses Gerüst) war die einzige Ausnahme.
+- **Code in Phasen per Branch und Pull Request:** ein Branch je Phase (`feat/…`, `eval/…`), von frischem `main`, mehrere Commits, ein Pull Request, "Rebase and merge", ein PR nach dem anderen. **Kleine, risikolose Änderungen** (Doku, Sicherheitsrichtlinie, Konfiguration ohne Wirkung) gehen direkt auf `main`, ohne Branch (Kasum, 25.10.2026, wie im Haupt-Repo seit 24.10.).
 - **Branches nie löschen, nie force-pushen.** Staging immer per Dateiname, nie `git add .`.
 - **Gate vor Push und Merge** (sobald Code da ist): Typecheck, Lint, Test, Build des Bündels. Bis dahin prüft die CI die Pflichtdateien.
 - **Mutationstest für jede neue Schranke:** Schranke kaputt machen, der Test muss anschlagen, danach aus der Sicherung zurücksetzen.
