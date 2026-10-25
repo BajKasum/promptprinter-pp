@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# Nur lesen. Jede Action hängt an einer Commit-SHA mit Versionskommentar,
+# Dependabot hebt beides gemeinsam an.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  verify:
+    name: Pflichtdateien
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Platzhalter, bis es Code gibt (P3 bis P8). Dann kommen Typecheck,
+      # Lint, Test und Build des Bündels dazu, und dieser Schritt bleibt.
+      - name: README, Lizenz und Projektregeln sind da
+        run: test -f README.md && test -f LICENSE && test -f CLAUDE.md
