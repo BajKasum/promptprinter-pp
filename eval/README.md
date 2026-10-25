@@ -86,7 +86,7 @@ Ablauf: Gold-Fakten committen, dann je Aufgabe und Bedingung ein frischer Worktr
 
 **Bewertungsblatt** (eine CSV-Zeile je Lauf): `datum, aufgabe, bedingung, host, modell, commit, recall_treffer, recall_gesamt, erfunden, rueckfragen, korrekturen, nachlieferungen, erfolg_erster_versuch, gate_gruen, kosten_usd, sekunden_bis_auftrag, raster_punkte, bemerkung`.
 
-**Festlegung zum Gate (Vorschlag vom 2026-10-26, noch nicht bestätigt):** "Gate grün" heisst im Eval `typecheck`, `lint`, `test` und `build`. `audit:gate` läuft mit und wird notiert, zählt aber nicht, weil es vom Stand der Advisory-Datenbank des Tages abhängt und ohne Zutun eines Laufs rot werden kann.
+**Festlegung zum Gate (bestätigt am 2026-10-26):** "Gate grün" heisst im Eval `typecheck`, `lint`, `test` und `build`. `audit:gate` läuft mit und wird notiert, zählt aber nicht, weil es vom Stand der Advisory-Datenbank des Tages abhängt und ohne Zutun eines Laufs rot werden kann.
 
 ## Das lokale Fixture (Aufgabe 11)
 
