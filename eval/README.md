@@ -67,7 +67,7 @@ Der Fehler für Aufgabe 03 liegt auf einem eigenen Branch, weil die Test-Suite s
 | **B** | derselbe Satz im Plan-Modus, danach Plan freigeben und ausführen |
 | **C** | `/pp`, den Auftrag bewerten, dann ausführen |
 
-Befehle als Bash-Arrays (damit die Anführungszeichen erhalten bleiben). **Noch nicht ausgeführt**; unter PowerShell die Argumente einzeln ausschreiben, das ist ungetestet.
+Befehle als Bash-Arrays (damit die Anführungszeichen erhalten bleiben). Sie sind die Planung; **ausgeführt werden die Läufe mit den Werkzeugen unten** (`eval/tools/`), die dieselben Argumente als Liste übergeben und damit die Frage nach PowerShell und Anführungszeichen erübrigen. Für Bedingung A sind die Befehle in `run-condition.mjs` um die Freigaben aus dem nächsten Abschnitt ergänzt.
 
 ```bash
 SAFE=(--strict-mcp-config --max-budget-usd 3 --output-format json)
@@ -92,6 +92,44 @@ Ablauf: Gold-Fakten committen, dann je Aufgabe und Bedingung ein frischer Worktr
 **Bewertungsblatt** (eine CSV-Zeile je Lauf): `datum, aufgabe, bedingung, host, modell, commit, recall_treffer, recall_gesamt, erfunden, rueckfragen, korrekturen, nachlieferungen, erfolg_erster_versuch, gate_gruen, kosten_usd, sekunden_bis_auftrag, raster_punkte, bemerkung`.
 
 **Festlegung zum Gate (bestätigt am 2026-10-26):** "Gate grün" heisst im Eval `typecheck`, `lint`, `test` und `build`. `audit:gate` läuft mit und wird notiert, zählt aber nicht, weil es vom Stand der Advisory-Datenbank des Tages abhängt und ohne Zutun eines Laufs rot werden kann.
+
+## Werkzeuge und Festlegungen der Läufe (seit 2026-10-26)
+
+Die Läufe laufen mit drei kleinen Node-Skripten ohne Abhängigkeiten in `eval/tools/`. Sie übergeben die Argumente als Liste, deshalb gibt es kein Problem mit Anführungszeichen unter PowerShell.
+
+| Skript | Aufgabe |
+|---|---|
+| `run-condition.mjs --task 01` | legt einen frischen Worktree der Kopie am geprüften Commit an, führt `claude -p` aus (heute nur Bedingung A), sichert Antwort, Diff, Aufrufe und eine `meta.json`. `--cleanup A-01` räumt den Worktree weg. |
+| `gate.mjs --tag A-01` | lässt danach `typecheck`, `lint`, `test` und `build` im Worktree laufen (Aufgabe 11: `npm test`, Aufgabe 12: Typecheck und die Cookie-Tests). Je Schritt Exit-Code und Dauer. |
+| `summarize.mjs --date 2026-10-26` | setzt Messwerte und `results-roh/<datum>/bewertung.json` zur CSV unter `eval/results/` zusammen. |
+
+Die Roh-Ausgaben liegen in `pp-eval/results-roh/<datum>/` **ausserhalb dieses Repos**: sie können Inhalte des Fixtures enthalten. Im Repo stehen nur die CSV und die Notizen.
+
+**Festlegungen, die der Plan nicht hatte** (2026-10-26):
+
+1. **Bereinigte Umgebung.** Der verschachtelte `claude` bekommt keine der Variablen `CLAUDE*` und `ANTHROPIC*` der aufrufenden App. Sonst liefe er als Kind der App (mit deren Sitzung, Zugang und Nachrichtenkanal) und nicht als das normale `claude`. Er meldet sich mit dem eigenen Login an. Modell war bei allen Läufen `claude-opus-5-5[1m]`, der Standard des CLI; ein Aufruf mit dem Wort "ok" kostet schon rund 0,25 USD.
+2. **Freigaben für Bash.** Ohne `--allowedTools` verweigert `claude -p` jedes nicht lesende Kommando, und kein Lauf könnte seine Tests starten. Freigegeben sind, gleich für alle Bedingungen: `npm run *`, `npm test*`, `npx vitest*`, `npx tsc*`, `npx eslint*`, `node --test*`, `git add*`, `git commit*`, `git checkout -b*`, `git switch -c*`; bei Aufgabe 12 zusätzlich `pnpm`, `corepack pnpm` und `vp` (ohne `install` und `add`). Weiter gesperrt bleiben `git push` und `gh`. **Die Muster sind zu eng**: `git checkout -q -b` passt nicht auf `git checkout -b*`, und ein Lauf blieb deshalb ohne Branch.
+3. **Das Vorspiel von Aufgabe 03** läuft als drei Züge derselben Sitzung (`--resume`), nicht interaktiv. Die Kosten des Vorspiels stehen getrennt.
+4. **Zählung bei Bedingung A.** A hat keinen Auftrag ausser dem rohen Satz. `raster_punkte` bewertet deshalb den Satz (so steht es in der Planung); `recall_treffer` zählt, wie viele Gold-Fakten der Agent im Lauf berücksichtigt hat (Antwort oder Diff). Die Zahl ist mit dem Recall des Auftrags bei B und C **nicht vergleichbar**. Bewertet hat Claude, nicht blind, Kasum bewertet nach.
+5. **Gate nach dem Lauf, einzeln.** Laufen mehrere Gates zugleich, scheitern Komponententests und die Wächter, die den ganzen Baum lesen, an der 5-Sekunden-Grenze. Der Test-Schritt wird deshalb allein wiederholt, wenn nichts anderes läuft. `next build` bricht unter Windows gelegentlich am Schluss mit `EBUSY` ab (beim Kopieren nach `.next/standalone`, auch auf unverändertem `main`); `gate.mjs` wiederholt ihn dann einmal und hält beide Versuche fest.
+6. **Aufgabe 12.** Hono ist mit `corepack pnpm install --frozen-lockfile --ignore-scripts` installiert (der Arbeitsbereich sperrt die Build-Skripte von `esbuild`, `msw`, `sharp`, `unrs-resolver` und `workerd` ohnehin). Auf dem unveränderten Stand: Typecheck grün, die zwei Cookie-Testdateien mit 77 Tests grün.
+7. **Warnung zu den Worktrees.** `node_modules` ist per Junction mit der Kopie verbunden. `git worktree remove` folgt der Junction und löscht Pakete im Ziel (am 2026-10-26 geschehen, `npm ci` stellte sie wieder her). Worktrees nur mit `run-condition.mjs --cleanup` wegräumen, nie per `rm -rf` oder `git worktree remove`.
+
+## Ergebnisse
+
+**Basislinie A, 2026-10-26** (`results/2026-10-26-basislinie.csv`, zwölf Läufe, Modell `claude-opus-5-5[1m]`, Claude Code 2.1.296; Bedingung B und C folgen):
+
+| Messwert | Wert |
+|---|---|
+| Kosten | 10,05 USD für zwölf Aufgaben (0,28 bis 1,85 USD je Lauf, Vorspiel von Aufgabe 03 eingerechnet), 5600 Sekunden Laufzeit |
+| Erfolg im ersten Versuch | 8 ja, 3 teils (02, 05, 12), 1 nein (06: `CLAUDE.md` hat danach 451 statt höchstens 450 Zeilen) |
+| Erfundenes (K2) | 0 |
+| Geheimnisse (K11, Aufgabe 11) | 0 |
+| Rückfragen vor dem Handeln | 2 (02 und 08) |
+| Gold-Fakten, vom Agenten im Lauf berücksichtigt | im Mittel 74 % (nicht vergleichbar mit dem Recall des Auftrags bei B und C, siehe oben) |
+| Raster des rohen Satzes | im Mittel 3,7 von 16 Punkten |
+
+Der Agent ohne `/pp` ist stark: Er liest die `CLAUDE.md` des Repos, fand bei Aufgabe 02 selbst, dass die Aussage schon im Artikel steht, und bei Aufgabe 11 las er weder `.env` noch `config.js`. Für G1 (C gegen B, Recall mindestens 25 Punkte höher) ist das ein hoher Massstab. Gate-Stand: Aufgaben 01, 03, 04, 05, 07, 11 und 12 grün, 06 rot (`CLAUDE.md` mit 451 Zeilen), 02, 08, 09 und 10 haben nichts geändert und brauchen kein Gate. Auf dem unveränderten Stand der Kopie (`c61b51f`) sind typecheck, lint, test und, allein gelaufen, auch der Build grün (368 Sekunden); unter Last scheiterte der Build dort einmal mit `EBUSY`.
 
 ## Das lokale Fixture (Aufgabe 11)
 
