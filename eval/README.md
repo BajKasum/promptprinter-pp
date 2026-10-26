@@ -14,6 +14,7 @@ Das Haupt-Repo verlangt in seiner `CLAUDE.md` Branch, Push und Pull Request, und
 4. `--max-budget-usd` je Lauf (Startwert 3).
 5. Nichts aus der Kopie wird je zurückgeholt.
 6. Jedes Repo, in dem gelaufen wird, vorher auf `.claude/settings.json`, `.mcp.json` und `.codex/` prüfen: `claude -p` führt deren Hooks und Server sonst ohne Rückfrage aus.
+7. Vor jedem neuen Lauf die **Zweige früherer Läufe aus der Kopie nehmen**: Worktrees teilen ihre Zweige, und ein Agent, der einen Zweig anlegt, sieht dabei die der anderen Läufe (bei B geschehen). Vorher mit `git bundle create <Datei> --all` sichern und mit `git bundle verify` prüfen; bleiben dürfen `main` und der Zweig der Aufgabe 03. Am 2026-10-26 für A und B geschehen.
 
 ## Die Kopie des Haupt-Repos
 
@@ -179,7 +180,21 @@ Der Agent ohne `/pp` ist stark: Er liest die `CLAUDE.md` des Repos, fand bei Auf
 | Kosten | 10,05 USD | 14,83 USD (auf den elf gemeinsamen Aufgaben 14,83 gegen 8,49) |
 | Zeit | 93 Minuten | 106 Minuten (Plan 35 bis 138 s, Umsetzung bis 27 Minuten) |
 
-Der Plan-Modus lässt die Pläne vollständiger werden (Raster), der Recall steigt aber nur um rund sechs Punkte und ist anders gezählt als bei A (siehe oben, Punkt 4 und "Bedingung B"). Der Plan-Modus ändert in keinem Lauf etwas (`plan_unveraendert` bei allen elf Läufen "ja"). **Für G1 ist das ein harter Befund:** Mit B bei 83,8 % kann C den Recall um höchstens 16 Punkte steigern und das Raster um höchstens 2 Punkte (B steht bei 13,9 von 16). Die Schwellen "Recall plus 25 Punkte, Raster plus 3 Punkte" aus der Planung sind damit rechnerisch nicht mehr erreichbar, sofern Kasums blinde Nachbewertung B nicht deutlich tiefer setzt. Die Schwellen müssen neu gefasst werden (zum Beispiel gegen A, bei Kosten und Nachlieferungen), nicht der Skill.
+Der Plan-Modus lässt die Pläne vollständiger werden (Raster), der Recall steigt aber nur um rund sechs Punkte und ist anders gezählt als bei A (siehe oben, Punkt 4 und "Bedingung B"). Der Plan-Modus ändert in keinem Lauf etwas (`plan_unveraendert` bei allen elf Läufen "ja"). **Für G1 ist das ein harter Befund:** Mit B bei 83,8 % kann C den Recall um höchstens 16 Punkte steigern und das Raster um höchstens 2 Punkte (B steht bei 13,9 von 16). Die Schwellen "Recall plus 25 Punkte, Raster plus 3 Punkte" aus der Planung waren damit rechnerisch nicht mehr erreichbar. Sie wurden am 2026-10-26, vor dem ersten Lauf C, neu gefasst (Abschnitt "Go/No-Go G1" unten).
+
+### Go/No-Go G1 (neu gefasst am 2026-10-26)
+
+Ein absoluter Abstand taugt nicht, wenn der Massstab nahe am Maximum liegt. Gemessen wird, welcher Teil der Lücke von B zum Maximum geschlossen wird. **Go**, wenn alles gilt (C gegen B auf den elf Aufgaben, bei denen B ein Ergebnis hat, derselbe Stand, dasselbe Modell, Recall und Raster wie bei B am Auftrag gezählt):
+
+| # | Kriterium | Schwelle bei der heutigen Basislinie |
+|---|---|---|
+| 1 | Recall: C ≥ B + 0,4 · (100 − B) | 90,3 % (B: 83,8 %) |
+| 2 | Raster, Mittel: C ≥ B + 0,4 · (16 − B) | 14,7 (B: 13,9) |
+| 3 | Erfundenes und Geheimnisse 0, `/pp` ändert vor dem Ja keine Datei, Erfolg im ersten Versuch nicht schlechter als B | B: 8 von 11 |
+| 4 | Aufgabe 12 (unbekanntes Repo ohne Regeldatei, dort ist B am schwächsten): C-Recall ≥ B + 0,4 · (100 − B) | rund 73 % (B: 55 %) |
+| 5 | Der Auftrag von `/pp` kostet höchstens rund 15 % der Ausführung (M, L) | |
+
+Verschiebt eine blinde Nachbewertung B, werden die Schwellen mit derselben Formel neu gerechnet, **bevor der erste C-Lauf startet**; danach ändert sich nichts mehr. Kriterium 4 wurde gewählt, nachdem B bekannt war, und ist vor dem ersten C-Lauf fixiert. Einmal verfehlt: die Methodik überarbeiten und neu messen, zweimal verfehlt: nicht weiterbauen.
 
 **Was bei B schiefging, nicht nachträglich korrigiert:**
 
