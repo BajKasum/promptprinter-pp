@@ -528,7 +528,13 @@ async function main() {
             skill_geladen: skillSignals.verlauf || skillSignals.antwort,
             skill_signale: skillSignals,
             abbruch,
-            referenzen_gelesen: read.filter((p) => /skills[\\/]pp[\\/]references/i.test(p ?? "")).map((p) => basename(p)),
+            // Der Skill liest seine Referenzen mit `Read` oder, häufiger, per `cat` im Bash (am 2026-10-26 bei C-04 bis C-06 so geschehen).
+            referenzen_gelesen: [
+              ...new Set([
+                ...read.filter((p) => /skills[\\/]pp[\\/]references/i.test(p ?? "")).map((p) => basename(p)),
+                ...usesAuftrag.bash.flatMap((c) => (/skills[\\/]pp/i.test(c) ? [...c.matchAll(/references[\\/]([a-z-]+\.md)/gi)].map((m) => m[1]) : [])),
+              ]),
+            ],
             skript_versuche: usesAuftrag.bash.filter((c) => /context\.mjs/.test(c)).length,
             gelesen_auftrag: read.filter((p) => !/skills[\\/]pp[\\/]/i.test(p ?? "")),
           };
