@@ -2,7 +2,7 @@
 
 Hier steht, womit gemessen wird, ob `/pp` bessere Aufträge liefert als der rohe Satz und als der Plan-Modus des Agenten. Zwölf Aufgaben, je unter drei Bedingungen. Die Gold-Fakten jeder Aufgabe werden **committet, bevor ein Lauf startet**, sonst bewertet man rückwirkend, was man gesehen hat.
 
-> **Stand 2026-10-26: Vorbereitung abgeschlossen, noch kein Lauf.** Alle zwölf Aufgaben stehen hier, mit Gold-Fakten, die vor dem ersten Lauf committet sind (Nachweis: `git log` dieses Branches). Die ersten Läufe sind für den 2026-10-31 geplant.
+> **Stand 2026-10-26: Basislinie A und B gelaufen und bewertet** (`results/2026-10-26-basislinie.csv`, 24 Zeilen, davon eine ohne Ergebnis). Noch kein Lauf C. Alle zwölf Aufgaben stehen hier, mit Gold-Fakten, die vor dem ersten Lauf committet sind (Nachweis: `git log` dieses Branches).
 
 ## Sicherheitsrahmen (gilt für jeden Lauf, ohne Ausnahme)
 
@@ -150,7 +150,7 @@ Endet Zug 1 nicht mit `success` (Fehler, Kostendeckel, Zeitlimit), gibt es keine
 
 ## Ergebnisse
 
-**Basislinie A, 2026-10-26** (`results/2026-10-26-basislinie.csv`, zwölf Läufe, Modell `claude-opus-5-5[1m]`, Claude Code 2.1.296; Bedingung B und C folgen):
+**Basislinie A, 2026-10-26** (`results/2026-10-26-basislinie.csv`, zwölf Läufe, Modell `claude-opus-5-5[1m]`, Claude Code 2.1.296; B steht weiter unten, C folgt):
 
 | Messwert | Wert |
 |---|---|
@@ -163,6 +163,34 @@ Endet Zug 1 nicht mit `success` (Fehler, Kostendeckel, Zeitlimit), gibt es keine
 | Raster des rohen Satzes | im Mittel 3,7 von 16 Punkten |
 
 Der Agent ohne `/pp` ist stark: Er liest die `CLAUDE.md` des Repos, fand bei Aufgabe 02 selbst, dass die Aussage schon im Artikel steht, und bei Aufgabe 11 las er weder `.env` noch `config.js`. Für G1 (C gegen B, Recall mindestens 25 Punkte höher) ist das ein hoher Massstab. Gate-Stand: Aufgaben 01, 03, 04, 05, 07, 11 und 12 grün, 06 rot (`CLAUDE.md` mit 451 Zeilen), 02, 08, 09 und 10 haben nichts geändert und brauchen kein Gate. Auf dem unveränderten Stand der Kopie (`c61b51f`) sind typecheck, lint, test und, allein gelaufen, auch der Build grün (368 Sekunden); unter Last scheiterte der Build dort einmal mit `EBUSY`.
+
+**Basislinie B, 2026-10-26** (dieselbe CSV, zwölf Läufe, derselbe Stand; bewertet durch Claude, nicht blind, Kasum bewertet nach):
+
+| Messwert | A | B |
+|---|---|---|
+| Läufe mit Ergebnis | 12 | 11 (B-07 ohne Ergebnis, siehe unten) |
+| Recall (A: im Lauf berücksichtigt, B: im Plan) | 75,0 % (81 von 108) | 83,8 % (83 von 99) |
+| Recall auf den elf gemeinsamen Aufgaben (ohne 07) | 77,8 % | 83,8 % |
+| Raster (A: der Satz, B: der Plan), Mittel von 16 | 3,7 | 13,9 |
+| Erfolg im ersten Versuch | 8 ja, 3 teils, 1 nein | 8 ja, 3 teils, 1 Abbruch (B-07) |
+| Gate grün | 7 von 8 geprüften | 8 von 8 geprüften |
+| Erfundenes (K2), Geheimnisse (K11) | 0 und 0 | 0 und 0 |
+| Rückfragen | 2 (02, 08) | 1 (08) |
+| Kosten | 10,05 USD | 14,83 USD (auf den elf gemeinsamen Aufgaben 14,83 gegen 8,49) |
+| Zeit | 93 Minuten | 106 Minuten (Plan 35 bis 138 s, Umsetzung bis 27 Minuten) |
+
+Der Plan-Modus lässt die Pläne vollständiger werden (Raster), der Recall steigt aber nur um rund sechs Punkte und ist anders gezählt als bei A (siehe oben, Punkt 4 und "Bedingung B"). Der Plan-Modus ändert in keinem Lauf etwas (`plan_unveraendert` bei allen elf Läufen "ja"). **Für G1 ist das ein harter Befund:** Mit B bei 83,8 % kann C den Recall um höchstens 16 Punkte steigern und das Raster um höchstens 2 Punkte (B steht bei 13,9 von 16). Die Schwellen "Recall plus 25 Punkte, Raster plus 3 Punkte" aus der Planung sind damit rechnerisch nicht mehr erreichbar, sofern Kasums blinde Nachbewertung B nicht deutlich tiefer setzt. Die Schwellen müssen neu gefasst werden (zum Beispiel gegen A, bei Kosten und Nachlieferungen), nicht der Skill.
+
+**Was bei B schiefging, nicht nachträglich korrigiert:**
+
+1. **Sitzungslimit des Kontos.** Bei B-01, 04, 05, 06 und 12 hat das Limit (API 429, "session limit") den zweiten Zug abgeschnitten, bei B-07 schon den Plan (vier Sekunden, null Token). B-01 und B-12 hatten ihre Arbeit gemacht (01 war schon committet, 12 hatte Fix und Tests), bei 04, 05 und 06 brach es mitten in der eigenen Prüfung ab. Gewertet wird der Stand des Worktrees nach dem Abbruch (Gate, Kriterien der Aufgabe), in der CSV steht `ende` als `abbruch-429-sitzungslimit`. B-07 hat kein Ergebnis und wurde nicht wiederholt. `meta.json` trug bei diesen Läufen zuerst `ende: success`, weil `subtype` auch bei einem API-Fehler so heisst; das Skript schreibt jetzt `fehler-<Status>`, bei den vorhandenen Läufen setzt `bewertung.json` den Wert.
+2. **Die Zweige der A-Läufe sind in der gemeinsamen Kopie sichtbar.** Alle Worktrees teilen ihre Zweige. B-01, 03, 04 und 05 haben beim Anlegen ihres Zweigs das `git log` des A-Zweigs gelesen (nie den Diff) und wichen im Namen aus. Der Plan war davon nicht betroffen (die Pläne nennen andere Namen), die Umsetzung höchstens am Rand. **Vor Lauf C die Zweige von A und B aus der Kopie nehmen** (vorher mit `git bundle` sichern), sonst sieht `/pp` die Lösungen.
+3. **Enge Freigaben.** `git checkout main`, `git fetch`, `git pull` und `NEXT_PUBLIC_…=… npm run build` (Umgebungsvariablen vor dem Befehl) passen nicht auf die Muster; B-01, 02, 03 und 06 wurden an einzelnen Schritten verweigert (`verweigert` in der CSV) und fragten danach um Freigabe. Das ist bei A wie bei B gleich und wurde nicht geändert.
+4. **Last.** B-02 sah drei Wächtertests an der 5-Sekunden-Grenze scheitern (andere Läufe liefen parallel). Die Gates liefen deshalb erst nach allen Läufen einzeln; bei B-01 und B-02 scheiterten nur Wächter an der Zeitgrenze, der Test-Schritt wurde allein wiederholt und war grün.
+5. **Plan-Modus in `claude -p`.** Es gibt kein `ExitPlanMode`; der Agent schreibt den Plan nach `~/.claude/plans/` und endet mit einer Bitte um Freigabe (zählt nicht als Rückfrage). Bei B-08 fragte er statt eines Plans nach dem Umfang.
+6. **Die Läufe von B starteten nicht alle zugleich:** B-02 lief zuerst allein (Probe der Plan-Erfassung), dann 01, 03, 04, 05 und 06, danach 08 bis 12, zuletzt 07. Innerhalb der Gruppen liefen sie wie bei A parallel. Die Kosten blieben mit 14,83 USD weit unter der Grenze von 25 USD.
+
+Die sechs Pakete für die blinde Nachbewertung (drei A, drei B, zufällige Kennung, ohne Bedingung) liegen in `pp-eval/results-roh/2026-10-26/blind/`, der Schlüssel daneben in `blind-schluessel.json`. Bei B sind nur 02, 03 und 11 darin, weil die übrigen Umsetzungen vom Limit abgeschnitten wurden.
 
 ## Das lokale Fixture (Aufgabe 11)
 

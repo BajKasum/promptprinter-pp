@@ -391,7 +391,8 @@ async function main() {
     modell: Object.keys((j.modelUsage ?? pj.modelUsage) ?? {}).join(","),
     session_id: sessionId,
     fehler: last.json?.is_error ?? true,
-    ende: last.json?.subtype ?? (last.timedOut ? "zeitlimit" : "kein-json"),
+    // `subtype` steht auch bei einem API-Fehler auf "success" (Sitzungslimit: is_error true, api_error_status 429).
+    ende: last.json?.is_error ? `fehler-${last.json.api_error_status ?? last.json.terminal_reason ?? "unbekannt"}` : (last.json?.subtype ?? (last.timedOut ? "zeitlimit" : "kein-json")),
     zeitlimit: [plan, run].some((r) => r?.timedOut === true),
     turns: sum(pj.num_turns, j.num_turns),
     kosten_usd: j.total_cost_usd ?? null,
@@ -412,7 +413,7 @@ async function main() {
           plan_session_id: pj.session_id ?? null,
           kosten_plan_usd: pj.total_cost_usd ?? null,
           sekunden_plan: plan.seconds,
-          ende_plan: pj.subtype ?? (plan.timedOut ? "zeitlimit" : "kein-json"),
+          ende_plan: pj.is_error ? `fehler-${pj.api_error_status ?? pj.terminal_reason ?? "unbekannt"}` : (pj.subtype ?? (plan.timedOut ? "zeitlimit" : "kein-json")),
           turns_plan: pj.num_turns ?? null,
           plan_zeichen: planMd.length,
           plan_unveraendert: planState.unveraendert,
