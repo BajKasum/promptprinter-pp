@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // Führt eine Eval-Aufgabe unter einer Bedingung aus und hält fest, was geschah.
 //
-// Heute nur Bedingung A (der rohe Satz, direkt ausführen). Aufruf:
-//   node eval/tools/run-condition.mjs --task 01 [--condition A] [--eval-dir <Ordner>]
+// Bedingung A: der rohe Satz, direkt ausführen.
+// Bedingung B: derselbe Satz im Plan-Modus; der Plan wird gesichert und geprüft (nichts darf sich geändert haben),
+// danach per `--resume` freigegeben und umgesetzt. Bei Aufgaben mit `nurPlan` gibt es keinen zweiten Zug.
+// Beide Bedingungen laufen mit denselben Freigaben, Sperren, derselben bereinigten Umgebung und demselben Deckel je Aufruf.
+//   node eval/tools/run-condition.mjs --task 01 [--condition A|B] [--eval-dir <Ordner>]
 //   node eval/tools/run-condition.mjs --cleanup A-01      (Worktree wegräumen, siehe `cleanup`)
 //
 // Der Sicherheitsrahmen steht in eval/README.md und wird hier nicht gelockert:
@@ -50,12 +53,17 @@ const TASKS = {
   "05": { repo: "kopie", ref: "main", commit: "c61b51f" },
   "06": { repo: "kopie", ref: "main", commit: "c61b51f" },
   "07": { repo: "kopie", ref: "main", commit: "c61b51f" },
-  "08": { repo: "kopie", ref: "main", commit: "c61b51f" },
-  "09": { repo: "kopie", ref: "main", commit: "c61b51f" },
-  10: { repo: "kopie", ref: "main", commit: "c61b51f" },
+  // 08 bis 10: bei B gibt es keinen zweiten Zug. 08 wird nicht umgesetzt (XL), bei 09 und 10 ist der Plan beziehungsweise
+  // der Bericht das Ergebnis und es darf nichts geändert werden (eval/README.md, "Bedingung B").
+  "08": { repo: "kopie", ref: "main", commit: "c61b51f", nurPlan: true },
+  "09": { repo: "kopie", ref: "main", commit: "c61b51f", nurPlan: true },
+  10: { repo: "kopie", ref: "main", commit: "c61b51f", nurPlan: true },
   11: { repo: "fixture", ref: "main", commit: "5b9ed5d" },
   12: { repo: "hono", ref: "main", commit: "bac5c4a", extraDeny: ["WebFetch", "WebSearch"] },
 };
+
+/** Der zweite Zug von Bedingung B (Wortlaut aus der Planung, eval/README.md). */
+const APPROVAL = "Plan ist freigegeben, setz ihn um.";
 
 const SAFE = ["--strict-mcp-config", "--output-format", "json"];
 const DENY = ["Bash(git push *)", "Bash(gh *)"];
@@ -121,9 +129,10 @@ function cleanEnv() {
   return env;
 }
 
-function runClaude({ cwd, prompt, resume, deny, allow, budget, timeoutMs }) {
+/** `mode` ist `acceptEdits` (A und der zweite Zug von B) oder `plan` (der erste Zug von B). Sonst ändert sich am Aufruf nichts. */
+function runClaude({ cwd, prompt, resume, deny, allow, budget, timeoutMs, mode = "acceptEdits" }) {
   const params = ["-p", prompt, ...SAFE, "--max-budget-usd", String(budget), "--disallowedTools", ...deny];
-  params.push("--allowedTools", ...allow, "--permission-mode", "acceptEdits");
+  params.push("--allowedTools", ...allow, "--permission-mode", mode);
   if (resume) params.push("--resume", resume);
   return new Promise((done) => {
     const started = Date.now();
@@ -158,38 +167,83 @@ function runClaude({ cwd, prompt, resume, deny, allow, budget, timeoutMs }) {
   });
 }
 
-/** Sucht die Sitzungsdatei von Claude Code und liest, welche Werkzeuge der Agent aufrief. */
-function toolUses(sessionId, worktree) {
+/**
+ * Sucht die Sitzungsdateien von Claude Code und liest, welche Werkzeuge der Agent aufrief. Bei B sind es mehrere Züge
+ * einer Sitzung (Vorspiel, Plan, Umsetzung): Einträge, die eine fortgesetzte Sitzung aus der früheren übernimmt, zählen einmal.
+ */
+function toolUses(sessionIds, worktree) {
   const root = join(homedir(), ".claude", "projects");
-  let file = null;
-  for (const dir of existsSync(root) ? readdirSync(root) : []) {
-    const candidate = join(root, dir, `${sessionId}.jsonl`);
-    if (existsSync(candidate)) file = candidate;
+  const files = [];
+  for (const sessionId of [sessionIds].flat().filter(Boolean)) {
+    let file = null;
+    for (const dir of existsSync(root) ? readdirSync(root) : []) {
+      const candidate = join(root, dir, `${sessionId}.jsonl`);
+      if (existsSync(candidate)) file = candidate;
+    }
+    if (file && !files.includes(file)) files.push(file);
   }
-  const uses = { read: [], search: [], edit: [], bash: [], other: [], assistantText: "" };
-  if (!file) return { ...uses, transcript: null };
+  const uses = { read: [], search: [], edit: [], bash: [], other: [], plans: [], assistantText: "" };
+  if (files.length === 0) return { ...uses, transcript: null };
   const rel = (p) => (p && p.startsWith(worktree) ? relative(worktree, p).replaceAll("\\", "/") : p);
-  for (const line of readFileSync(file, "utf8").split("\n")) {
-    if (!line.trim()) continue;
-    let entry;
-    try {
-      entry = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (entry.type !== "assistant" || !Array.isArray(entry.message?.content)) continue;
-    for (const part of entry.message.content) {
-      if (part.type === "text") uses.assistantText += `${part.text}\n`;
-      if (part.type !== "tool_use") continue;
-      const input = part.input ?? {};
-      if (part.name === "Read") uses.read.push(rel(input.file_path));
-      else if (part.name === "Grep" || part.name === "Glob") uses.search.push(`${part.name}: ${input.pattern ?? ""} ${rel(input.path ?? "")}`.trim());
-      else if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(part.name)) uses.edit.push(rel(input.file_path));
-      else if (part.name === "Bash") uses.bash.push(String(input.command ?? ""));
-      else uses.other.push(part.name);
+  const seen = new Set();
+  for (const file of files) {
+    for (const line of readFileSync(file, "utf8").split("\n")) {
+      if (!line.trim()) continue;
+      let entry;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (entry.type !== "assistant" || !Array.isArray(entry.message?.content)) continue;
+      if (entry.uuid) {
+        if (seen.has(entry.uuid)) continue;
+        seen.add(entry.uuid);
+      }
+      for (const part of entry.message.content) {
+        if (part.type === "text") uses.assistantText += `${part.text}\n`;
+        if (part.type !== "tool_use") continue;
+        const input = part.input ?? {};
+        if (part.name === "Read") uses.read.push(rel(input.file_path));
+        else if (part.name === "Grep" || part.name === "Glob") uses.search.push(`${part.name}: ${input.pattern ?? ""} ${rel(input.path ?? "")}`.trim());
+        else if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(part.name)) uses.edit.push(rel(input.file_path));
+        else if (part.name === "Bash") uses.bash.push(String(input.command ?? ""));
+        else if (part.name === "ExitPlanMode") {
+          uses.other.push(part.name);
+          if (input.plan) uses.plans.push(String(input.plan));
+        } else uses.other.push(part.name);
+      }
     }
   }
-  return { ...uses, transcript: file };
+  return { ...uses, transcript: files[0] };
+}
+
+/**
+ * Der Plan von B steht in der Antwort und im Aufruf von ExitPlanMode. `claude -p` kann den Plan nicht selbst freigeben lassen:
+ * der Aufruf erscheint als verweigert (`permission_denials`) und im Verlauf. Beides wird gesichert, ohne Doppelungen.
+ */
+function planText(json, uses) {
+  const sections = [];
+  const answer = String(json?.result ?? "").trim();
+  if (answer) sections.push(`## Antwort\n\n${answer}`);
+  const denied = (json?.permission_denials ?? []).filter((d) => d.tool_name === "ExitPlanMode").map((d) => d.tool_input?.plan);
+  const plans = [...new Set([...denied, ...uses.plans].filter(Boolean).map((p) => String(p).trim()))];
+  for (const [i, plan] of plans.entries()) sections.push(`## Plan (ExitPlanMode${plans.length > 1 ? ` ${i + 1}` : ""})\n\n${plan}`);
+  return sections.join("\n\n");
+}
+
+/**
+ * Zustand des Worktrees: `HEAD`, Zweig und Arbeitsbaum. Der Plan-Modus darf nichts ändern, also muss er nach dem
+ * Zug derselbe sein wie davor (nach dem Vorspiel, das bei Aufgabe 03 schon lief).
+ */
+function worktreeState(worktree, links) {
+  const head = git(worktree, "rev-parse", "HEAD");
+  const branch = git(worktree, "branch", "--show-current");
+  const status = git(worktree, "status", "--porcelain=v1")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !links.includes(l.replace(/^\S+\s+/, "").replace(/\/$/, "")));
+  return { head: head.slice(0, 7), branch, status };
 }
 
 function countLeaks(...texts) {
@@ -226,7 +280,7 @@ async function main() {
   const id = String(opts.task ?? "").padStart(2, "0");
   const task = TASKS[id] ?? TASKS[Number(id)];
   if (!task) throw new Error(`Unbekannte Aufgabe: ${opts.task}`);
-  if (opts.condition !== "A") throw new Error("Heute ist nur Bedingung A umgesetzt.");
+  if (!["A", "B"].includes(opts.condition)) throw new Error("Umgesetzt sind die Bedingungen A und B.");
 
   const evalDir = resolve(opts.evalDir ?? process.env.PP_EVAL_DIR ?? join(REPO_ROOT, "..", "pp-eval"));
   const repo = REPOS[task.repo];
@@ -255,16 +309,53 @@ async function main() {
 
   let session = null;
   let vorspielCost = 0;
+  const sessionIds = [];
+  const remember = (r) => {
+    const id = r.json?.session_id;
+    if (id && !sessionIds.includes(id)) sessionIds.push(id);
+  };
+  // Das Vorspiel läuft in A und B gleich (acceptEdits), damit der Auftrag in beiden auf derselben Sitzung aufbaut.
   for (const [i, step] of (task.vorspiel ?? []).entries()) {
     const r = await runClaude({ cwd: worktree, prompt: step, resume: session, deny, allow, budget, timeoutMs });
     writeFileSync(join(outDir, `vorspiel-${i + 1}.json`), r.stdout);
     session = r.json?.session_id ?? session;
+    remember(r);
     vorspielCost += r.json?.total_cost_usd ?? 0;
   }
 
-  const run = await runClaude({ cwd: worktree, prompt: intent, resume: session, deny, allow, budget, timeoutMs });
-  writeFileSync(join(outDir, "claude.json"), run.stdout);
-  writeFileSync(join(outDir, "stderr.txt"), run.stderr);
+  // B, erster Zug: der rohe Satz im Plan-Modus (ohne acceptEdits). Der Plan wird gesichert, danach prüft das Skript, dass
+  // der Plan-Modus nichts geändert hat. Ein zweiter Zug folgt nur, wenn der Plan zustande kam und die Aufgabe ihn verlangt.
+  let plan = null;
+  let planMd = "";
+  let planUses = null;
+  let planState = null;
+  let run = null;
+  if (opts.condition === "B") {
+    const vorher = worktreeState(worktree, repo.links);
+    plan = await runClaude({ cwd: worktree, prompt: intent, resume: session, deny, allow, budget, timeoutMs, mode: "plan" });
+    writeFileSync(join(outDir, "plan.json"), plan.stdout);
+    writeFileSync(join(outDir, "plan-stderr.txt"), plan.stderr);
+    session = plan.json?.session_id ?? session;
+    remember(plan);
+    planUses = toolUses(sessionIds, worktree);
+    planMd = planText(plan.json, planUses);
+    writeFileSync(join(outDir, "plan.md"), `${planMd}\n`);
+    const nachher = worktreeState(worktree, repo.links);
+    planState = { vorher, nachher, unveraendert: JSON.stringify(vorher) === JSON.stringify(nachher) };
+    writeFileSync(join(outDir, "plan-zustand.json"), JSON.stringify(planState, null, 2));
+    const planOk = plan.json?.subtype === "success" && plan.json?.is_error === false;
+    if (!task.nurPlan && planOk) {
+      run = await runClaude({ cwd: worktree, prompt: APPROVAL, resume: session, deny, allow, budget, timeoutMs });
+    }
+  } else {
+    run = await runClaude({ cwd: worktree, prompt: intent, resume: session, deny, allow, budget, timeoutMs });
+  }
+  if (run) {
+    writeFileSync(join(outDir, "claude.json"), run.stdout);
+    writeFileSync(join(outDir, "stderr.txt"), run.stderr);
+    remember(run);
+  }
+  const last = run ?? plan;
 
   // Was hat sich im Worktree geändert? Neue Dateien werden ausdrücklich je Name vorgemerkt, damit der Diff sie zeigt.
   const untracked = git(worktree, "ls-files", "--others", "--exclude-standard")
@@ -276,32 +367,53 @@ async function main() {
   writeFileSync(join(outDir, "diff.patch"), patch);
   writeFileSync(join(outDir, "status.txt"), git(worktree, "status", "--porcelain=v1"));
 
-  const sessionId = run.json?.session_id ?? session;
-  const uses = sessionId ? toolUses(sessionId, worktree) : { read: [], search: [], edit: [], bash: [], other: [], assistantText: "", transcript: null };
+  const sessionId = run?.json?.session_id ?? session;
+  const uses = sessionIds.length > 0 ? toolUses(sessionIds, worktree) : { read: [], search: [], edit: [], bash: [], other: [], plans: [], assistantText: "", transcript: null };
   writeFileSync(join(outDir, "aufrufe.json"), JSON.stringify({ read: uses.read, search: uses.search, edit: uses.edit, bash: uses.bash, other: uses.other }, null, 2));
 
-  const j = run.json ?? {};
+  // A: `j` ist der einzige Lauf. B: `j` ist der zweite Zug (leer, wenn es keinen gab), `pj` der Plan.
+  const j = run?.json ?? {};
+  const pj = plan?.json ?? {};
+  const sum = (...values) => (values.every((v) => v === null || v === undefined) ? null : values.reduce((s, v) => s + (v ?? 0), 0));
   const meta = {
     aufgabe: id,
     bedingung: opts.condition,
     datum: date,
     repo: task.repo,
     commit: base.slice(0, 7),
-    modell: Object.keys(j.modelUsage ?? {}).join(","),
+    modell: Object.keys((j.modelUsage ?? pj.modelUsage) ?? {}).join(","),
     session_id: sessionId,
-    fehler: j.is_error ?? true,
-    ende: j.subtype ?? (run.timedOut ? "zeitlimit" : "kein-json"),
-    zeitlimit: run.timedOut,
-    turns: j.num_turns ?? null,
+    fehler: last.json?.is_error ?? true,
+    ende: last.json?.subtype ?? (last.timedOut ? "zeitlimit" : "kein-json"),
+    zeitlimit: [plan, run].some((r) => r?.timedOut === true),
+    turns: sum(pj.num_turns, j.num_turns),
     kosten_usd: j.total_cost_usd ?? null,
     kosten_vorspiel_usd: vorspielCost || null,
-    sekunden: run.seconds,
+    sekunden: run?.seconds ?? 0,
     geaendert: changed,
     gelesen: [...new Set(uses.read)],
     anzahl_bash: uses.bash.length,
-    verweigert: (j.permission_denials ?? []).map((d) => `${d.tool_name}: ${String(d.tool_input?.command ?? d.tool_input?.file_path ?? "").slice(0, 120)}`),
-    geheimnis_treffer: countLeaks(String(j.result ?? ""), patch, uses.assistantText),
-    antwort_zeichen: String(j.result ?? "").length,
+    // Der Aufruf von ExitPlanMode ist der Plan selbst (in `plan.md`), keine Verweigerung im Sinn der Sperren.
+    verweigert: [...(pj.permission_denials ?? []), ...(j.permission_denials ?? [])]
+      .filter((d) => d.tool_name !== "ExitPlanMode")
+      .map((d) => `${d.tool_name}: ${String(d.tool_input?.command ?? d.tool_input?.file_path ?? "").slice(0, 120)}`),
+    geheimnis_treffer: countLeaks(String(j.result ?? ""), planMd, patch, uses.assistantText),
+    antwort_zeichen: String(last.json?.result ?? "").length,
+    ...(plan
+      ? {
+          // Nur bei B. `kosten_usd` und `sekunden` gehören dann zum zweiten Zug, Plan und Vorspiel stehen getrennt.
+          plan_session_id: pj.session_id ?? null,
+          kosten_plan_usd: pj.total_cost_usd ?? null,
+          sekunden_plan: plan.seconds,
+          ende_plan: pj.subtype ?? (plan.timedOut ? "zeitlimit" : "kein-json"),
+          turns_plan: pj.num_turns ?? null,
+          plan_zeichen: planMd.length,
+          plan_unveraendert: planState.unveraendert,
+          plan_zustand: planState,
+          gelesen_plan: [...new Set(planUses.read)],
+          zweiter_zug: run !== null,
+        }
+      : {}),
   };
   writeFileSync(join(outDir, "meta.json"), JSON.stringify(meta, null, 2));
   appendFileSync(join(evalDir, "results-roh", date, "zusammenfassung.jsonl"), `${JSON.stringify(meta)}\n`);
