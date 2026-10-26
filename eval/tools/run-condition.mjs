@@ -4,8 +4,12 @@
 // Bedingung A: der rohe Satz, direkt ausführen.
 // Bedingung B: derselbe Satz im Plan-Modus; der Plan wird gesichert und geprüft (nichts darf sich geändert haben),
 // danach per `--resume` freigegeben und umgesetzt. Bei Aufgaben mit `nurPlan` gibt es keinen zweiten Zug.
-// Beide Bedingungen laufen mit denselben Freigaben, Sperren, derselben bereinigten Umgebung und demselben Deckel je Aufruf.
-//   node eval/tools/run-condition.mjs --task 01 [--condition A|B] [--eval-dir <Ordner>]
+// Bedingung C: `/pp <Satz>` im Modus default (ohne acceptEdits, `/pp` darf keine Datei ändern); der Auftrag wird gesichert,
+// danach prüft das Skript, dass nichts geändert wurde und dass `/pp` geladen war. Erst dann folgt "ausführen" per `--resume`
+// mit acceptEdits (eval/README.md, "Bedingung C"). Fragt `/pp` zurück, folgt genau eine Runde "ok, nimm die Vorschläge".
+// Alle Bedingungen laufen mit denselben Freigaben, Sperren, derselben bereinigten Umgebung und demselben Deckel je Aufruf
+// (C zusätzlich mit Leserecht auf den Ordner des Skills).
+//   node eval/tools/run-condition.mjs --task 01 [--condition A|B|C] [--eval-dir <Ordner>]
 //   node eval/tools/run-condition.mjs --cleanup A-01      (Worktree wegräumen, siehe `cleanup`)
 //
 // Der Sicherheitsrahmen steht in eval/README.md und wird hier nicht gelockert:
@@ -64,6 +68,13 @@ const TASKS = {
 
 /** Der zweite Zug von Bedingung B (Wortlaut aus der Planung, eval/README.md). */
 const APPROVAL = "Plan ist freigegeben, setz ihn um.";
+/** Die Züge von Bedingung C (Wortlaut aus eval/README.md, "Bedingung C"). */
+const EXECUTE = "ausführen";
+const FOLLOWUP = "ok, nimm die Vorschläge";
+/** Nur für C: `/pp` liest seine Referenzen aus dem eigenen Ordner; in `-p` verweigert der Modus default das sonst. */
+const SKILL_READ = "Read(~/.claude/skills/pp/**)";
+/** Die Zeile "Context used:" der Ausgabe, in der Sprache der Absicht ("Genutzter Kontext:"). */
+const CONTEXT_LINE = /^[\s*_>#-]*(context used|genutzter kontext|kontext genutzt|verwendeter kontext)\b/im;
 
 const SAFE = ["--strict-mcp-config", "--output-format", "json"];
 const DENY = ["Bash(git push *)", "Bash(gh *)"];
@@ -253,6 +264,33 @@ function worktreeState(worktree, links) {
   return { head: head.slice(0, 7), branch, status };
 }
 
+/** Der Auftrag von `/pp`: der erste Codeblock vom Typ `text` der Antwort (Schritt 9 des Skills). Ohne Block ist die Antwort eine Rückfrage. */
+function extractOrder(answer) {
+  const match = String(answer ?? "").replace(/\r\n/g, "\n").match(/^```text[^\n]*\n([\s\S]*?)\n```[ \t]*$/m);
+  return match ? match[1].trim() : "";
+}
+
+/**
+ * Zeichnet der Verlauf den Aufruf von `/pp` auf? Claude Code schreibt einen Slash-Befehl als `<command-name>/pp</command-name>`
+ * in die Sitzung (ein Aufruf des Werkzeugs `Skill` ist es nicht; im Probelauf vom 2026-10-26 geprüft).
+ */
+function skillLoaded(sessionIds) {
+  const root = join(homedir(), ".claude", "projects");
+  for (const sessionId of [sessionIds].flat().filter(Boolean)) {
+    for (const dir of existsSync(root) ? readdirSync(root) : []) {
+      const file = join(root, dir, `${sessionId}.jsonl`);
+      if (existsSync(file) && readFileSync(file, "utf8").includes("<command-name>/pp</command-name>")) return true;
+    }
+  }
+  return false;
+}
+
+/** Ein Aufruf von `claude -p` endete mit `success` und ohne Fehler. */
+const callOk = (r) => r?.json?.subtype === "success" && r?.json?.is_error === false;
+
+/** Wie `meta.ende` eines Aufrufs: Fehler mit Status, sonst `subtype`. */
+const endeOf = (r) => (r?.json?.is_error ? `fehler-${r.json.api_error_status ?? r.json.terminal_reason ?? "unbekannt"}` : (r?.json?.subtype ?? (r?.timedOut ? "zeitlimit" : "kein-json")));
+
 function countLeaks(...texts) {
   const joined = texts.join("\n");
   return LEAK_PATTERNS.reduce((sum, re) => sum + (joined.match(re)?.length ?? 0), 0);
@@ -287,7 +325,8 @@ async function main() {
   const id = String(opts.task ?? "").padStart(2, "0");
   const task = TASKS[id] ?? TASKS[Number(id)];
   if (!task) throw new Error(`Unbekannte Aufgabe: ${opts.task}`);
-  if (!["A", "B"].includes(opts.condition)) throw new Error("Umgesetzt sind die Bedingungen A und B.");
+  if (!["A", "B", "C"].includes(opts.condition)) throw new Error("Umgesetzt sind die Bedingungen A, B und C.");
+  if (opts.condition === "C" && TASKS[id]?.nurPlan) throw new Error(`Aufgabe ${id}: die Festlegung für C steht noch aus (eval/README.md, "Bedingung C"), das Werkzeug läuft dort nicht.`);
 
   const evalDir = resolve(opts.evalDir ?? process.env.PP_EVAL_DIR ?? join(REPO_ROOT, "..", "pp-eval"));
   const repo = REPOS[task.repo];
@@ -309,7 +348,7 @@ async function main() {
   }
 
   const deny = [...DENY, ...(REPO_DENY[task.repo] ?? []), ...(task.extraDeny ?? [])];
-  const allow = [...ALLOW, ...(REPO_ALLOW[task.repo] ?? [])];
+  const allow = [...ALLOW, ...(REPO_ALLOW[task.repo] ?? []), ...(opts.condition === "C" ? [SKILL_READ] : [])];
   const budget = Number(opts.maxBudget);
   const timeoutMs = Number(opts.timeoutMin) * 60_000;
   const intent = intentOf(id);
@@ -337,7 +376,61 @@ async function main() {
   let planUses = null;
   let planState = null;
   let run = null;
-  if (opts.condition === "B") {
+  // Nur bei C: Zug 1 (`auftrag`), die Rückfrage-Runde, Zug 3 und was die Prüfungen ergeben.
+  let auftrag = null;
+  let rueckfrage = null;
+  let run3 = null;
+  let order = "";
+  let answer = "";
+  let usesAuftrag = null;
+  let auftragState = null;
+  let skillSignals = null;
+  let abbruch = null;
+  if (opts.condition === "C") {
+    // C, erster Zug: `/pp` mit dem rohen Satz im Modus default (ohne acceptEdits): `/pp` darf nichts ändern. Der Auftrag
+    // ist der erste Codeblock vom Typ `text` der Antwort. Ohne Block fragt der Skill zurück: genau eine Runde "ok, nimm die Vorschläge".
+    const vorher = worktreeState(worktree, repo.links);
+    auftrag = await runClaude({ cwd: worktree, prompt: `/pp ${intent}`, resume: session, deny, allow, budget, timeoutMs, mode: "default" });
+    writeFileSync(join(outDir, "auftrag.json"), auftrag.stdout);
+    writeFileSync(join(outDir, "auftrag-stderr.txt"), auftrag.stderr);
+    session = auftrag.json?.session_id ?? session;
+    remember(auftrag);
+    const firstAnswer = String(auftrag.json?.result ?? "");
+    answer = firstAnswer;
+    order = callOk(auftrag) ? extractOrder(firstAnswer) : "";
+    if (!order && callOk(auftrag)) {
+      writeFileSync(join(outDir, "auftrag-antwort-1.md"), `${firstAnswer}\n`);
+      rueckfrage = await runClaude({ cwd: worktree, prompt: FOLLOWUP, resume: session, deny, allow, budget, timeoutMs, mode: "default" });
+      writeFileSync(join(outDir, "rueckfrage.json"), rueckfrage.stdout);
+      session = rueckfrage.json?.session_id ?? session;
+      remember(rueckfrage);
+      answer = String(rueckfrage.json?.result ?? "");
+      order = callOk(rueckfrage) ? extractOrder(answer) : "";
+    }
+    writeFileSync(join(outDir, "auftrag.md"), `${order}\n`);
+    writeFileSync(join(outDir, "auftrag-antwort.md"), `${answer}\n`);
+    usesAuftrag = toolUses(sessionIds, worktree);
+    const nachher = worktreeState(worktree, repo.links);
+    auftragState = { vorher, nachher, unveraendert: JSON.stringify(vorher) === JSON.stringify(nachher) };
+    writeFileSync(join(outDir, "auftrag-zustand.json"), JSON.stringify(auftragState, null, 2));
+    skillSignals = { verlauf: skillLoaded(sessionIds), antwort: CONTEXT_LINE.test(firstAnswer) || CONTEXT_LINE.test(answer) };
+    if (!skillSignals.verlauf && !skillSignals.antwort) abbruch = "skill-nicht-geladen";
+    else if (!auftragState.unveraendert) abbruch = "auftrag-hat-dateien-geaendert";
+    else if (!order) abbruch = "kein-auftrag";
+    if (!abbruch) {
+      run = await runClaude({ cwd: worktree, prompt: EXECUTE, resume: session, deny, allow, budget, timeoutMs });
+      writeFileSync(join(outDir, "claude.json"), run.stdout);
+      session = run.json?.session_id ?? session;
+      remember(run);
+      // Verlangt der Auftrag zuerst einen Plan mit Freigabe (L, XL), hat Zug 2 nichts geändert: dann einmal die Freigabe wie bei B.
+      if (callOk(run) && JSON.stringify(worktreeState(worktree, repo.links)) === JSON.stringify(nachher)) {
+        run3 = await runClaude({ cwd: worktree, prompt: APPROVAL, resume: session, deny, allow, budget, timeoutMs });
+        writeFileSync(join(outDir, "claude-zug3.json"), run3.stdout);
+        session = run3.json?.session_id ?? session;
+        remember(run3);
+      }
+    }
+  } else if (opts.condition === "B") {
     const vorher = worktreeState(worktree, repo.links);
     plan = await runClaude({ cwd: worktree, prompt: intent, resume: session, deny, allow, budget, timeoutMs, mode: "plan" });
     writeFileSync(join(outDir, "plan.json"), plan.stdout);
@@ -362,7 +455,7 @@ async function main() {
     writeFileSync(join(outDir, "stderr.txt"), run.stderr);
     remember(run);
   }
-  const last = run ?? plan;
+  const last = run3 ?? run ?? rueckfrage ?? auftrag ?? plan;
 
   // Was hat sich im Worktree geändert? Neue Dateien werden ausdrücklich je Name vorgemerkt, damit der Diff sie zeigt.
   const untracked = git(worktree, "ls-files", "--others", "--exclude-standard")
@@ -393,7 +486,7 @@ async function main() {
     fehler: last.json?.is_error ?? true,
     // `subtype` steht auch bei einem API-Fehler auf "success" (Sitzungslimit: is_error true, api_error_status 429).
     ende: last.json?.is_error ? `fehler-${last.json.api_error_status ?? last.json.terminal_reason ?? "unbekannt"}` : (last.json?.subtype ?? (last.timedOut ? "zeitlimit" : "kein-json")),
-    zeitlimit: [plan, run].some((r) => r?.timedOut === true),
+    zeitlimit: [plan, run, auftrag, rueckfrage, run3].some((r) => r?.timedOut === true),
     turns: sum(pj.num_turns, j.num_turns),
     kosten_usd: j.total_cost_usd ?? null,
     kosten_vorspiel_usd: vorspielCost || null,
@@ -405,8 +498,42 @@ async function main() {
     verweigert: [...(pj.permission_denials ?? []), ...(j.permission_denials ?? [])]
       .filter((d) => d.tool_name !== "ExitPlanMode")
       .map((d) => `${d.tool_name}: ${String(d.tool_input?.command ?? d.tool_input?.file_path ?? "").slice(0, 120)}`),
-    geheimnis_treffer: countLeaks(String(j.result ?? ""), planMd, patch, uses.assistantText),
+    geheimnis_treffer: countLeaks(String(j.result ?? ""), planMd, patch, uses.assistantText, order, answer),
     antwort_zeichen: String(last.json?.result ?? "").length,
+    ...(auftrag
+      ? (() => {
+          // Nur bei C. `kosten_usd`, `sekunden` und `turns` gehören dann zur Ausführung (Zug 2 und 3), Auftrag und Vorspiel stehen getrennt.
+          const execs = [run, run3].filter(Boolean);
+          const calls = [auftrag, rueckfrage, ...execs].filter(Boolean);
+          const read = [...new Set(usesAuftrag.read)];
+          return {
+            modell: Object.keys(calls.map((r) => r.json?.modelUsage).find(Boolean) ?? {}).join(","),
+            turns: sum(...calls.map((r) => r.json?.num_turns)),
+            kosten_usd: execs.length > 0 ? sum(...execs.map((r) => r.json?.total_cost_usd)) : null,
+            sekunden: execs.reduce((s, r) => s + r.seconds, 0),
+            verweigert: calls
+              .flatMap((r) => r.json?.permission_denials ?? [])
+              .map((d) => `${d.tool_name}: ${String(d.tool_input?.command ?? d.tool_input?.file_path ?? "").slice(0, 120)}`),
+            ende: abbruch ?? endeOf(last),
+            kosten_auftrag_usd: sum(auftrag.json?.total_cost_usd, rueckfrage?.json?.total_cost_usd),
+            sekunden_auftrag: auftrag.seconds + (rueckfrage?.seconds ?? 0),
+            ende_auftrag: endeOf(rueckfrage ?? auftrag),
+            turns_auftrag: sum(auftrag.json?.num_turns, rueckfrage?.json?.num_turns),
+            rueckfrage_runden: rueckfrage ? 1 : 0,
+            zug3: run3 !== null,
+            auftrag_zeichen: order.length,
+            auftrag_woerter: order.split(/\s+/).filter(Boolean).length,
+            auftrag_unveraendert: auftragState.unveraendert,
+            auftrag_zustand: auftragState,
+            skill_geladen: skillSignals.verlauf || skillSignals.antwort,
+            skill_signale: skillSignals,
+            abbruch,
+            referenzen_gelesen: read.filter((p) => /skills[\\/]pp[\\/]references/i.test(p ?? "")).map((p) => basename(p)),
+            skript_versuche: usesAuftrag.bash.filter((c) => /context\.mjs/.test(c)).length,
+            gelesen_auftrag: read.filter((p) => !/skills[\\/]pp[\\/]/i.test(p ?? "")),
+          };
+        })()
+      : {}),
     ...(plan
       ? {
           // Nur bei B. `kosten_usd` und `sekunden` gehören dann zum zweiten Zug, Plan und Vorspiel stehen getrennt.
