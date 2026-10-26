@@ -69,7 +69,7 @@ for (let n = 1; n <= 12; n++) {
       // K9: bei B vergeht die Zeit bis zum Plan, bei A gibt es keinen Auftrag, dessen Zeit man messen könnte.
       sekunden_bis_auftrag: isPlan ? meta.sekunden_plan : "", raster_punkte: r.raster_punkte, bemerkung: r.bemerkung,
       sekunden_gesamt: meta.sekunden + (meta.sekunden_plan ?? 0), turns: meta.turns, dateien_gelesen: meta.gelesen.length,
-      dateien_geaendert: meta.geaendert.length, geheimnis_treffer: meta.geheimnis_treffer, ende: meta.ende, verweigert: meta.verweigert.length,
+      dateien_geaendert: meta.geaendert.length, geheimnis_treffer: meta.geheimnis_treffer, ende: r.ende ?? meta.ende, verweigert: meta.verweigert.length,
       recall_art: isPlan ? "plan" : "lauf",
       kosten_plan_usd: isPlan && meta.kosten_plan_usd !== null ? Number(meta.kosten_plan_usd).toFixed(2) : "",
       sekunden_plan: isPlan ? meta.sekunden_plan : "",
