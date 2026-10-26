@@ -2,7 +2,7 @@
 
 Hier steht, womit gemessen wird, ob `/pp` bessere Aufträge liefert als der rohe Satz und als der Plan-Modus des Agenten. Zwölf Aufgaben, je unter drei Bedingungen. Die Gold-Fakten jeder Aufgabe werden **committet, bevor ein Lauf startet**, sonst bewertet man rückwirkend, was man gesehen hat.
 
-> **Stand 2026-10-26: Basislinie A und B gelaufen und bewertet** (`results/2026-10-26-basislinie.csv`, 24 Zeilen, davon eine ohne Ergebnis). Noch kein Lauf C. Alle zwölf Aufgaben stehen hier, mit Gold-Fakten, die vor dem ersten Lauf committet sind (Nachweis: `git log` dieses Branches).
+> **Stand 2026-10-26: Basislinie A und B gelaufen und bewertet** (`results/2026-10-26-basislinie.csv`, 24 Zeilen, davon eine ohne Ergebnis). Lauf C auf 01 bis 06 gelaufen (`results/2026-10-26-skill-v0.csv`, Zwischenstand unten), 07 bis 12 stehen aus. Alle zwölf Aufgaben stehen hier, mit Gold-Fakten, die vor dem ersten Lauf committet sind (Nachweis: `git log` dieses Branches).
 
 ## Sicherheitsrahmen (gilt für jeden Lauf, ohne Ausnahme)
 
@@ -216,6 +216,32 @@ Der Agent ohne `/pp` ist stark: Er liest die `CLAUDE.md` des Repos, fand bei Auf
 | Zeit | 93 Minuten | 106 Minuten (Plan 35 bis 138 s, Umsetzung bis 27 Minuten) |
 
 Der Plan-Modus lässt die Pläne vollständiger werden (Raster), der Recall steigt aber nur um rund sechs Punkte und ist anders gezählt als bei A (siehe oben, Punkt 4 und "Bedingung B"). Der Plan-Modus ändert in keinem Lauf etwas (`plan_unveraendert` bei allen elf Läufen "ja"). **Für G1 ist das ein harter Befund:** Mit B bei 83,8 % kann C den Recall um höchstens 16 Punkte steigern und das Raster um höchstens 2 Punkte (B steht bei 13,9 von 16). Die Schwellen "Recall plus 25 Punkte, Raster plus 3 Punkte" aus der Planung waren damit rechnerisch nicht mehr erreichbar. Sie wurden am 2026-10-26, vor dem ersten Lauf C, neu gefasst (Abschnitt "Go/No-Go G1" unten).
+
+**Lauf C, Teil 1 (Aufgaben 01 bis 06), 2026-10-26** (`results/2026-10-26-skill-v0.csv`, sechs Zeilen; Skill bei `db4dc5f`, Modell `claude-opus-5-5[1m]`, Claude Code 2.1.296; bewertet durch Claude, nicht blind, wie B). Zwei Wellen zu je drei Läufen, kein Abbruch, kein Sitzungslimit, in `auftrag.json`, `rueckfrage.json` und `claude.json` überall `is_error` false und kein `api_error_status`. B steht hier auf denselben sechs Aufgaben (01 bis 06 der CSV der Basislinie).
+
+| Messwert | B (01 bis 06) | C (01 bis 06) |
+|---|---|---|
+| Recall (B: im Plan, C: im Auftrag) | 84,9 % (45 von 53) | 86,8 % (46 von 53) |
+| Raster, Mittel von 16 | 14,17 | 14,33 |
+| Erfolg im ersten Versuch (ja, teils, nein) | 4, 2, 0 (zwei vom Sitzungslimit abgeschnitten) | 4, 2, 0 (03 und 05 teils) |
+| Gate grün (typecheck, lint, test, build) | 8 von 8 geprüften der zwölf | 6 von 6, je rund vier Minuten, einzeln nacheinander |
+| Erfundenes (K2), Geheimnisse (K11) | 0, 0 | 0, 0 (alle Pfade mit `check-paths.mjs`, Bezeichner stichprobenweise gegen `c61b51f`) |
+| Rückfragen, Nachlieferungen | 0, 0 | 1, 1 (05: vier gebündelte Punkte bei Grösse M, dann "ok, nimm die Vorschläge") |
+| Kosten, alle Züge | 12,03 USD | 12,30 USD (1,03 bis 3,81 USD je Lauf) |
+| Zeit bis zum Auftrag (bei B: bis zum Plan) | 35 bis 138 s | 28 bis 88 s |
+
+**Gegen G1, nur als Zwischenstand auf sechs Aufgaben** (die Entscheidung fällt an Tag 10 auf allen elf mit B-Ergebnis): Recall 86,8 % gegen 90,3 % (README) beziehungsweise 90,9 % (dieselbe Formel mit B der sechs): nicht erreicht. Raster 14,33 gegen 14,7 beziehungsweise 14,9: nicht erreicht. K2, K11, "`/pp` ändert vor dem Ja nichts" (6 von 6) und "Erfolg nicht schlechter" sind erfüllt. Aufgabe 12 ist nicht gelaufen. Der Abstand zu B liegt bei +1,9 Punkten Recall und +0,16 Raster, das ist klein gegen die Streuung einer Bewertung durch ein Modell.
+
+**Was die Läufe zeigen** (nicht nachträglich geglättet):
+
+1. **Der Skill läuft wie entworfen.** `/pp` war in 6 von 6 Läufen geladen (Eintrag im Verlauf und die Zeile "Context used:", einmal als "Genutzter Kontext:" übersetzt), hat in keinem Lauf eine Datei, `HEAD` oder den Zweig geändert, hat bei S und M mit einer Ausnahme nicht zurückgefragt und den Auftrag in einem `text`-Block geliefert. Bei 06 (L) verlangte der Auftrag selbst zuerst einen Plan; Zug 2 lieferte ihn, Zug 3 (Freigabe) setzte um.
+2. **Referenzdateien.** Gelesen hat `/pp` sie ungleich: 03 und 05 alle vier, 04 und 06 drei (`checklist.md` nicht), 01 nur `blocks.md` und `targets.md`, 02 keine. `task-types.md` fehlte in 01 und 02. Mehrfach per `cat` im Bash statt per `Read`, was der alte Zähler übersah (jetzt behoben, `referenzen_gelesen` zählt beide Wege).
+3. **Leseerlaubnis.** Ohne `Read(~/.claude/skills/pp/**)` verweigert `claude -p` im Modus default das Lesen der Referenzen (Probelauf). Ein Befund für den Skill selbst: in einer interaktiven Sitzung fragt der Host bei jedem Zugriff, ein `allowed-tools`-Eintrag für den eigenen Ordner würde das ersparen (nicht geprüft, nicht geändert).
+4. **Der Skript-Rückfall kostet jedes Mal einen Fehlversuch.** In allen sechs Läufen rief der Agent zuerst `context.mjs pack` auf (fehlt) und sammelte dann selbst; das ist der vorgesehene Rückfall, aber es verlängert Zug 1.
+5. **K8 verfehlt.** Der Auftrag kostete im Verhältnis zur Ausführung: 01 63 %, 02 59 %, 03 74 %, 04 40 %, 05 54 %, 06 17 % (Ziel höchstens rund 15 % bei M und L). Nur L (06) kommt in die Nähe. Der Grund ist die Kleinheit der Ausführungen und das Lesen des Repos im Zug 1, das die Ausführung dann ein zweites Mal macht.
+6. **K9, K3.** Zeit bis zum Auftrag: S 50 und 42 s (Ziel unter 30 s) verfehlt, M 28, 61 und 88 s (unter 90 s) und L 71 s (unter 180 s) erfüllt. K3: drei von sechs Aufträgen liegen ausserhalb des Längenkorridors (01 mit 250 und 02 mit 284 Wörtern bei S, 05 mit 456 bei M); Ziel höchstens 1 von 12.
+7. **Wo C von B abweicht.** Besser: 04 (Dateiname bereinigt), 02 und 05 (je ein Gold-Fakt mehr, bei 05 durch die Rückfrage). Schlechter: 03 (drei Fakten fehlen, dazu hängt der Auftrag eine Angleichung des Kopfkommentars an, die über "sonst nichts" hinausgeht, Erfolg deshalb "teils") und 06 (die Warnung zum Weg über `outputs` fehlt). Bei 05 deutet auch C "beim nächsten Mal öffnen" als Klick auf die Pille statt als Einstieg nach dem Login, wie A und B.
+8. **Enge Freigaben** wie bei A und B: `git checkout main` und `git pull` wurden in allen sechs Läufen verweigert, der Agent legte den Zweig vom losgelösten `HEAD` an oder blieb ohne Zweig; ein Build mit Umgebungsvariablen vor dem Befehl wurde in 04 bis 06 verweigert. Unverändert gelassen.
 
 ### Go/No-Go G1 (neu gefasst am 2026-10-26)
 
