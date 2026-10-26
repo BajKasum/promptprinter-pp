@@ -121,7 +121,7 @@ B darf nicht anders laufen als A, sonst sind beide nicht vergleichbar. Deshalb g
 
 | Zug | Aufruf | Gesichert |
 |---|---|---|
-| 1 | der rohe Satz mit `--permission-mode plan` (ohne `acceptEdits`) | `plan.json` (Roh-Ausgabe), `plan.md` (Antwort und der Plan aus dem Aufruf von `ExitPlanMode`), `plan-zustand.json` |
+| 1 | der rohe Satz mit `--permission-mode plan` (ohne `acceptEdits`) | `plan.json` (Roh-Ausgabe), `plan.md` (die Plan-Datei, die der Plan-Modus nach `~/.claude/plans/` schreibt, dazu die Antwort), `plan-zustand.json` |
 | Prüfung | das Skript liest vor und nach Zug 1 `HEAD`, Zweig und `git status` | `plan_unveraendert` in `meta.json`: ja, wenn alle drei nach dem Zug so sind wie davor (kein Commit, kein Zweig, nichts im Arbeitsbaum; bei Aufgabe 03 gilt "davor" nach dem Vorspiel) |
 | 2 | `--resume <session_id>` mit "Plan ist freigegeben, setz ihn um." und `--permission-mode acceptEdits` | `claude.json`, Diff, Aufrufe wie bei A |
 
@@ -144,7 +144,7 @@ Endet Zug 1 nicht mit `success` (Fehler, Kostendeckel, Zeitlimit), gibt es keine
 3. **Erfundenes, Rückfragen, Nachlieferungen**: im Plan-Zug gezählt (Erfundenes auch im zweiten Zug). Eine Rückfrage, die der Nutzer beantworten müsste, zählt wie bei A auch als Nachlieferung.
 4. **Erfolg im ersten Versuch**: nach dem zweiten Zug (Abschnitt "Ausführung erfolgreich" der Aufgabe und das Gate); bei 08, 09 und 10 nach dem Plan-Modus-Zug gegen "Muss" und "Ausführung erfolgreich" der Aufgabe.
 5. **Kosten und Zeit**: Summe aller Züge (Vorspiel, Plan, Umsetzung). `kosten_plan_usd` und `sekunden_plan` stehen zusätzlich; `sekunden_bis_auftrag` ist bei B die Zeit bis zum Plan (K9).
-6. **`verweigert`** zählt den Aufruf von `ExitPlanMode` nicht: `claude -p` kann den Plan nicht selbst freigeben lassen, der Aufruf erscheint als verweigert und ist der Plan selbst.
+6. **Wo der Plan steht.** Ein Probelauf in einem Wegwerf-Repo (2026-10-26, kein Eval-Lauf, rund 0,38 USD) zeigte: `claude -p` mit `--permission-mode plan` hat `ExitPlanMode` nicht zur Verfügung, der Agent schreibt den Plan per `Write` in eine Datei unter `~/.claude/plans/` (ausserhalb des Worktrees) und fasst ihn in der Antwort zusammen; die Freigabe per `--resume` bleibt dieselbe Sitzung und setzt um. `plan.md` enthält beides, den Plan aus der Datei und die Antwort. Wäre `ExitPlanMode` da, stünde dessen Plan ebenfalls dort, und der Aufruf zählt nicht unter `verweigert`.
 
 **A und B zählen den Recall verschieden** (siehe Punkt 4 oben): bei A zählt, was der Agent im Lauf berücksichtigt hat (Antwort, Diff), bei B, was im Plan steht. Die Spalte `recall_art` der CSV trägt `lauf` oder `plan`. A und B lassen sich beim Recall deshalb nur mit diesem Vorbehalt nebeneinanderstellen: A ist die mildere Zählung, weil ein Agent vieles beachtet, das er nie hinschreibt.
 

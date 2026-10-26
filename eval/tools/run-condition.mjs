@@ -27,7 +27,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -218,14 +218,21 @@ function toolUses(sessionIds, worktree) {
   return { ...uses, transcript: files[0] };
 }
 
+/** Der Plan-Modus schreibt den Plan als Datei nach `~/.claude/plans/`, ausserhalb des Worktrees. */
+const PLAN_FILE = /[\\/]\.claude[\\/]plans[\\/][^\\/]+\.md$/i;
+
 /**
- * Der Plan von B steht in der Antwort und im Aufruf von ExitPlanMode. `claude -p` kann den Plan nicht selbst freigeben lassen:
- * der Aufruf erscheint als verweigert (`permission_denials`) und im Verlauf. Beides wird gesichert, ohne Doppelungen.
+ * Der Plan von B steht an drei Stellen: in der Plan-Datei, die der Agent im Plan-Modus schreibt, in der Antwort (meist eine
+ * Zusammenfassung) und, wo das Werkzeug dafür da ist, im Aufruf von ExitPlanMode. Im Probelauf von `claude -p` stand
+ * ExitPlanMode nicht zur Verfügung: der Plan lag nur in der Datei und in der Antwort. Alles wird gesichert, ohne Doppelungen.
  */
 function planText(json, uses) {
   const sections = [];
   const answer = String(json?.result ?? "").trim();
   if (answer) sections.push(`## Antwort\n\n${answer}`);
+  for (const file of [...new Set(uses.edit.filter((p) => p && PLAN_FILE.test(p)))]) {
+    if (existsSync(file)) sections.push(`## Plan-Datei (${basename(file)})\n\n${readFileSync(file, "utf8").trim()}`);
+  }
   const denied = (json?.permission_denials ?? []).filter((d) => d.tool_name === "ExitPlanMode").map((d) => d.tool_input?.plan);
   const plans = [...new Set([...denied, ...uses.plans].filter(Boolean).map((p) => String(p).trim()))];
   for (const [i, plan] of plans.entries()) sections.push(`## Plan (ExitPlanMode${plans.length > 1 ? ` ${i + 1}` : ""})\n\n${plan}`);
@@ -393,7 +400,7 @@ async function main() {
     geaendert: changed,
     gelesen: [...new Set(uses.read)],
     anzahl_bash: uses.bash.length,
-    // Der Aufruf von ExitPlanMode ist der Plan selbst (in `plan.md`), keine Verweigerung im Sinn der Sperren.
+    // Ein Aufruf von ExitPlanMode wäre der Plan selbst (in `plan.md`), keine Verweigerung im Sinn der Sperren.
     verweigert: [...(pj.permission_denials ?? []), ...(j.permission_denials ?? [])]
       .filter((d) => d.tool_name !== "ExitPlanMode")
       .map((d) => `${d.tool_name}: ${String(d.tool_input?.command ?? d.tool_input?.file_path ?? "").slice(0, 120)}`),
