@@ -67,7 +67,7 @@ Der Fehler für Aufgabe 03 liegt auf einem eigenen Branch, weil die Test-Suite s
 | **B** | derselbe Satz im Plan-Modus, danach Plan freigeben und ausführen |
 | **C** | `/pp`, den Auftrag bewerten, dann ausführen |
 
-Befehle als Bash-Arrays (damit die Anführungszeichen erhalten bleiben). Sie sind die Planung; **ausgeführt werden die Läufe mit den Werkzeugen unten** (`eval/tools/`), die dieselben Argumente als Liste übergeben und damit die Frage nach PowerShell und Anführungszeichen erübrigen. Für Bedingung A sind die Befehle in `run-condition.mjs` um die Freigaben aus dem nächsten Abschnitt ergänzt.
+Befehle als Bash-Arrays (damit die Anführungszeichen erhalten bleiben). Sie sind die Planung; **ausgeführt werden die Läufe mit den Werkzeugen unten** (`eval/tools/`), die dieselben Argumente als Liste übergeben und damit die Frage nach PowerShell und Anführungszeichen erübrigen. Für die Bedingungen A und B sind die Befehle in `run-condition.mjs` um die Freigaben aus dem nächsten Abschnitt ergänzt.
 
 ```bash
 SAFE=(--strict-mcp-config --max-budget-usd 3 --output-format json)
@@ -99,9 +99,9 @@ Die Läufe laufen mit drei kleinen Node-Skripten ohne Abhängigkeiten in `eval/t
 
 | Skript | Aufgabe |
 |---|---|
-| `run-condition.mjs --task 01` | legt einen frischen Worktree der Kopie am geprüften Commit an, führt `claude -p` aus (heute nur Bedingung A), sichert Antwort, Diff, Aufrufe und eine `meta.json`. `--cleanup A-01` räumt den Worktree weg. |
+| `run-condition.mjs --task 01 [--condition B]` | legt einen frischen Worktree der Kopie am geprüften Commit an, führt `claude -p` aus (Bedingung A, ab 2026-10-26 auch B), sichert Antwort, Plan, Diff, Aufrufe und eine `meta.json`. `--cleanup A-01` räumt den Worktree weg. |
 | `gate.mjs --tag A-01` | lässt danach `typecheck`, `lint`, `test` und `build` im Worktree laufen (Aufgabe 11: `npm test`, Aufgabe 12: Typecheck und die Cookie-Tests). Je Schritt Exit-Code und Dauer. |
-| `summarize.mjs --date 2026-10-26` | setzt Messwerte und `results-roh/<datum>/bewertung.json` zur CSV unter `eval/results/` zusammen. |
+| `summarize.mjs --date 2026-10-26` | setzt Messwerte und `results-roh/<datum>/bewertung.json` zur CSV unter `eval/results/` zusammen (Standard: A und B in einer Datei, nach Aufgabe und dann nach Bedingung). |
 
 Die Roh-Ausgaben liegen in `pp-eval/results-roh/<datum>/` **ausserhalb dieses Repos**: sie können Inhalte des Fixtures enthalten. Im Repo stehen nur die CSV und die Notizen.
 
@@ -114,6 +114,39 @@ Die Roh-Ausgaben liegen in `pp-eval/results-roh/<datum>/` **ausserhalb dieses Re
 5. **Gate nach dem Lauf, einzeln.** Laufen mehrere Gates zugleich, scheitern Komponententests und die Wächter, die den ganzen Baum lesen, an der 5-Sekunden-Grenze. Der Test-Schritt wird deshalb allein wiederholt, wenn nichts anderes läuft. `next build` bricht unter Windows gelegentlich am Schluss mit `EBUSY` ab (beim Kopieren nach `.next/standalone`, auch auf unverändertem `main`); `gate.mjs` wiederholt ihn dann einmal und hält beide Versuche fest.
 6. **Aufgabe 12.** Hono ist mit `corepack pnpm install --frozen-lockfile --ignore-scripts` installiert (der Arbeitsbereich sperrt die Build-Skripte von `esbuild`, `msw`, `sharp`, `unrs-resolver` und `workerd` ohnehin). Auf dem unveränderten Stand: Typecheck grün, die zwei Cookie-Testdateien mit 77 Tests grün.
 7. **Warnung zu den Worktrees.** `node_modules` ist per Junction mit der Kopie verbunden. `git worktree remove` folgt der Junction und löscht Pakete im Ziel (am 2026-10-26 geschehen, `npm ci` stellte sie wieder her). Worktrees nur mit `run-condition.mjs --cleanup` wegräumen, nie per `rm -rf` oder `git worktree remove`.
+
+### Bedingung B (festgelegt am 2026-10-26, vor dem ersten Lauf von B)
+
+B darf nicht anders laufen als A, sonst sind beide nicht vergleichbar. Deshalb gilt für **jeden** Aufruf von B dasselbe wie bei A: bereinigte Umgebung, dieselben Freigaben und Sperren (Punkt 2 oben, bei Aufgabe 12 mit den Sperren für `WebFetch` und `WebSearch`), `--strict-mcp-config`, Deckel von 3 USD **je Aufruf** (B hat bis zu zwei Aufrufe je Aufgabe, also bis zu 6 USD), dasselbe Modell, frischer Worktree am geprüften Commit. Was B von A unterscheidet, ist allein der Modus des ersten Zugs.
+
+| Zug | Aufruf | Gesichert |
+|---|---|---|
+| 1 | der rohe Satz mit `--permission-mode plan` (ohne `acceptEdits`) | `plan.json` (Roh-Ausgabe), `plan.md` (Antwort und der Plan aus dem Aufruf von `ExitPlanMode`), `plan-zustand.json` |
+| Prüfung | das Skript liest vor und nach Zug 1 `HEAD`, Zweig und `git status` | `plan_unveraendert` in `meta.json`: ja, wenn alle drei nach dem Zug so sind wie davor (kein Commit, kein Zweig, nichts im Arbeitsbaum; bei Aufgabe 03 gilt "davor" nach dem Vorspiel) |
+| 2 | `--resume <session_id>` mit "Plan ist freigegeben, setz ihn um." und `--permission-mode acceptEdits` | `claude.json`, Diff, Aufrufe wie bei A |
+
+**Festlegungen für Aufgaben, bei denen der zweite Zug nicht passt:**
+
+| Aufgabe | Zweiter Zug bei B | Warum |
+|---|---|---|
+| 03 | normal, aber mit Vorspiel | Das Vorspiel ("Lass die Tests für normalize-fences laufen.", "Okay, danke.") läuft **wie bei A** (`acceptEdits`, zwei Züge derselben Sitzung), dann folgt "fix das" als Zug 1 im Plan-Modus und die Freigabe als Zug 2. Das Vorspiel läuft nicht im Plan-Modus, damit der Auftrag in A und B auf derselben Sitzung aufbaut. |
+| 08 | **keiner** | XL wird im Eval nicht umgesetzt (Aufgabe 08, "Ausführung"); gewertet wird die erste Antwort mit einem Plan oder einer Rückfrage. Bei B ist das der Plan-Modus-Zug. |
+| 09 | **keiner** | Das Ergebnis ist das Dokument in der Antwort, "keine Datei geändert" ist eine Bedingung. Die Freigabe "setz ihn um" liesse den Agenten etwas bauen, das die Aufgabe nicht verlangt. |
+| 10 | **keiner** | Das Ergebnis ist der Bericht, "keine Datei geändert" ist eine Bedingung. Die Freigabe würde Behebungen auslösen. |
+| übrige | normal | |
+
+Endet Zug 1 nicht mit `success` (Fehler, Kostendeckel, Zeitlimit), gibt es keinen zweiten Zug und keine Wiederholung: der Abbruch ist das Ergebnis. Auch eine Rückfrage statt eines Plans bekommt in Zug 2 nur die Freigabe, keine Antwort darauf.
+
+**Auswertung bei B.**
+
+1. **Raster** (16 Punkte): bewertet den **Plan** (`plan.md`), nicht den Satz wie bei A.
+2. **Recall** (`recall_treffer` von `recall_gesamt`): die Gold-Fakten der Aufgabe, die im **Plan** stehen. Das ist die Definition der Planung (K1: "Anteil der Gold-Fakten einer Aufgabe, die im Auftrag stehen") und mit C später vergleichbar. `recall_gesamt` ist je Aufgabe dieselbe Zahl wie bei A. Bei 08, 09 und 10 zählt die Antwort des Plan-Modus-Zugs.
+3. **Erfundenes, Rückfragen, Nachlieferungen**: im Plan-Zug gezählt (Erfundenes auch im zweiten Zug). Eine Rückfrage, die der Nutzer beantworten müsste, zählt wie bei A auch als Nachlieferung.
+4. **Erfolg im ersten Versuch**: nach dem zweiten Zug (Abschnitt "Ausführung erfolgreich" der Aufgabe und das Gate); bei 08, 09 und 10 nach dem Plan-Modus-Zug gegen "Muss" und "Ausführung erfolgreich" der Aufgabe.
+5. **Kosten und Zeit**: Summe aller Züge (Vorspiel, Plan, Umsetzung). `kosten_plan_usd` und `sekunden_plan` stehen zusätzlich; `sekunden_bis_auftrag` ist bei B die Zeit bis zum Plan (K9).
+6. **`verweigert`** zählt den Aufruf von `ExitPlanMode` nicht: `claude -p` kann den Plan nicht selbst freigeben lassen, der Aufruf erscheint als verweigert und ist der Plan selbst.
+
+**A und B zählen den Recall verschieden** (siehe Punkt 4 oben): bei A zählt, was der Agent im Lauf berücksichtigt hat (Antwort, Diff), bei B, was im Plan steht. Die Spalte `recall_art` der CSV trägt `lauf` oder `plan`. A und B lassen sich beim Recall deshalb nur mit diesem Vorbehalt nebeneinanderstellen: A ist die mildere Zählung, weil ein Agent vieles beachtet, das er nie hinschreibt.
 
 ## Ergebnisse
 
