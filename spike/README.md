@@ -25,3 +25,17 @@ Alle Aufrufe mit `claude -p "<Befehl>" --output-format json --strict-mcp-config 
 **Nicht geprüft, mit Grund:** T4 bis T6 (Codex): das Programm `codex` ist auf diesem Rechner nicht im Pfad (nur der Ordner `~/.codex`). T7 und T8 (VS Code Copilot): braucht die Oberfläche von VS Code und lässt sich hier nicht von Hand bedienen. T9, T11, T13, T14: für Tag 7 vorgesehen.
 
 Insgesamt kosteten die sechs Aufrufe dieses Spikes 0,73 USD.
+
+## Nachtrag Tag 7 (2026-10-26)
+
+Mit denselben Wegwerf-Skills, die vorübergehend aus diesem Branch zurückkopiert und danach wieder entfernt wurden. Drei weitere Skills (`pp-spike-pipe`, `-sh`, `-ps`) lagen nur für die Probe in `~/.claude/skills/` und sind nicht im Repo.
+
+| # | Ergebnis |
+|---|---|
+| T2b | Pipe (`echo x \| node …/hello.mjs`) und Here-Document laufen unter dem engen Muster `Bash(node *hello.mjs*)` ohne Verweigerung |
+| T9 | Mindestversion **Node 22**: Node 20 ist laut nodejs.org EOL, 22 und 24 sind LTS. `fs.globSync` ab v22.0.0 (stabil ab v22.17 und v24.0), `fs.cpSync` erst ab v22.3 nicht mehr experimentell: nicht verwenden |
+| T11 | Skill unter `…/pp spike ä/.claude/skills/pp-spike/`, geladen per `--add-dir`: `DIR=` mit Leerzeichen und Umlaut, das Skript lief |
+| T13 | `!`-Zeilen laufen ohne `shell`-Feld in Git Bash, mit `shell: powershell` in PowerShell. Eine fehlgeschlagene `!`-Zeile bricht den ganzen Skill ab; `${VAR}` in `!`-Zeilen verweigert die Rechteprüfung. Der Skill `pp` hat deshalb keine `!`-Zeilen |
+| T14 | Ein Auftrag mit 1201 Wörtern, 9501 Zeichen, mit `"`, `'`, `$HOME`, Backticks, `\`, `&`, `\|`, `<`, `>` und Umlauten kommt in Git Bash (`"$(cat datei)"`) und PowerShell 7.6 (`(Get-Content -Raw datei)`) zeichengenau als Argument an; `claude` ist `claude.exe`. In Git Bash wartet `claude -p` drei Sekunden auf Stdin (`< /dev/null`), in PowerShell `$null \| claude -p …` |
+
+Weiter offen: T4 bis T8 (Codex und VS Code Copilot), der interaktive Modus.
