@@ -149,6 +149,41 @@ Endet Zug 1 nicht mit `success` (Fehler, Kostendeckel, Zeitlimit), gibt es keine
 
 **A und B zählen den Recall verschieden** (siehe Punkt 4 oben): bei A zählt, was der Agent im Lauf berücksichtigt hat (Antwort, Diff), bei B, was im Plan steht. Die Spalte `recall_art` der CSV trägt `lauf` oder `plan`. A und B lassen sich beim Recall deshalb nur mit diesem Vorbehalt nebeneinanderstellen: A ist die mildere Zählung, weil ein Agent vieles beachtet, das er nie hinschreibt.
 
+### Bedingung C (festgelegt am 2026-10-26, vor dem ersten Lauf von C)
+
+C misst den Skill `/pp` in der Fassung von Phase P3, **ohne Skript** (G1 liegt vor P4). Stand des Skills: `skill/pp/` aus dem Branch `feat/skill-v0` bei Commit `db4dc5f` (`SKILL.md` 0.1.0 und die vier Referenzdateien), am 2026-10-26 von Hand nach `~/.claude/skills/pp/` kopiert (nur dorthin, jede Datei gleich dem Blob des Commits, geprüft mit `git hash-object`). `scripts/context.mjs` fehlt: der Skill hat dafür den Rückfall (der Agent sammelt die Fakten selbst; sein Versuch, das Skript zu starten, schlägt fehl und steht im Verlauf). Der Ordner bleibt bis G1 unverändert installiert. Modell, Claude-Code-Version, Kopie, geprüfte Commits, bereinigte Umgebung, `--strict-mcp-config`, Sperren, Freigaben für Bash und der Deckel von 3 USD je Aufruf sind wie bei A und B.
+
+**Eine Freigabe mehr, nur für C:** `Read(~/.claude/skills/pp/**)`. Im Probelauf in einem Wegwerf-Repo (2026-10-26, kein Eval-Lauf, 0,19 USD) hat `claude -p` im Modus default das Lesen der Referenzdateien verweigert (sie liegen ausserhalb des Projekts), und `/pp` schrieb den Auftrag ohne sie, nicht in den Bausteinen. Mit der Freigabe las er sie (0,08 USD, keine Verweigerung) und schrieb den Auftrag in den Bausteinen. In einer interaktiven Sitzung wäre es eine einmalige Rückfrage. Die Freigabe erlaubt nur Lesen und nur in diesem Ordner. Das ist ein Befund über den Skill (in `-p` brauchen seine Referenzen eine Freigabe), keine Änderung am Skill.
+
+| Zug | Aufruf | Gesichert |
+|---|---|---|
+| Vorspiel | nur Aufgabe 03, wie bei A und B (`acceptEdits`, zwei Züge derselben Sitzung) | `vorspiel-N.json` |
+| 1 | `/pp <der rohe Satz>` im Modus **default** (ohne `acceptEdits`, damit `/pp` keine Datei ändern kann) | `auftrag.json` (Roh-Ausgabe), `auftrag.md` (der erste Codeblock vom Typ `text` der Antwort), `auftrag-antwort.md` (die ganze Antwort) |
+| Prüfung 1 | `HEAD`, Zweig und Arbeitsbaum nach Zug 1 gleich wie davor | `auftrag_unveraendert` in `meta.json` |
+| Prüfung 2 | `/pp` war geladen (Risiko R18): ein Eintrag `<command-name>/pp</command-name>` im Verlauf der Sitzung (so zeichnet Claude Code den Aufruf eines Slash-Befehls auf, ein Aufruf des Werkzeugs `Skill` ist es nicht) **oder** die Zeile "Context used:" in der Antwort (sie steht in der Sprache der Absicht, im Probelauf kam sie als "Genutzter Kontext:") | `skill_geladen` |
+| Rückfrage | Zug 1 liefert keinen Codeblock vom Typ `text`: die Antwort ist die Rückfrage des Skills. Dann folgt genau einmal `ok, nimm die Vorschläge` per `--resume`, Modus default | `rueckfrage.json` |
+| 2 | `ausführen` per `--resume`, Modus `acceptEdits` | `claude.json`, Diff, Aufrufe wie bei A |
+| 3 | nur wenn Zug 2 weder `HEAD` noch Zweig noch Arbeitsbaum verändert hat (der Auftrag verlangt bei L und XL zuerst einen Plan und Freigabe): `Plan ist freigegeben, setz ihn um.`, derselbe Wortlaut wie bei B, `acceptEdits`, einmal | `claude-zug3.json` |
+
+**Wann es keinen Zug 2 gibt** (der Abbruch ist das Ergebnis, nichts wird wiederholt): `/pp` hat nach der Rückfrage-Runde keinen Auftrag geliefert; Prüfung 1 schlägt an (`/pp` hat vor dem Ja etwas geändert, ein Verstoss gegen Regel 2 des Skills und gegen G1 Punkt 3); Prüfung 2 schlägt an (der Lauf zählt nicht als C, `ende` = `skill-nicht-geladen`); ein Zug endet nicht mit `success`.
+
+**Zählung bei C**, gleich wie bei B, nur am Auftrag statt am Plan:
+
+1. **Raster** (16 Punkte) und **Recall** (`recall_treffer` von `recall_gesamt`, dieselbe Gesamtzahl wie bei A und B): bewertet den **Auftrag** (`auftrag.md`; hat es eine Rückfrage-Runde gegeben, den Auftrag nach der Antwort). `recall_art` = `auftrag`.
+2. **Erfundenes (K2):** jeder Pfad des Auftrags gegen den geprüften Commit (`eval/tools/check-paths.mjs`), dazu von Hand Funktionen, Tabellen, Routen und Befehle. Ein Pfad, den der Auftrag ausdrücklich als neu anzulegen nennt, ist nicht erfunden.
+3. **Rückfragen:** Runden vor dem Auftrag (0 oder 1). **Nachlieferungen:** jede Rückfrage zählt auch als Nachlieferung (wie bei A und B), ebenso eine Rückfrage des Agenten in Zug 2. Zug 3 zählt nicht, die Freigabe hat B auch.
+4. **Korrekturen (K5):** Änderungen, die ich vor dem Ausführen am Auftrag machen würde (von Claude geschätzt, nicht blind).
+5. **Erfolg im ersten Versuch (K7):** nach Zug 2 beziehungsweise 3, gegen "Ausführung erfolgreich" der Aufgabe und das Gate.
+6. **Kosten und Zeit:** Summe aller Züge. Zusätzlich `kosten_auftrag_usd` und `sekunden_auftrag` (Zug 1 und die Rückfrage-Runde). K8 = Kosten des Auftrags geteilt durch Kosten der Ausführung (Zug 2 und 3), K9 = `sekunden_auftrag`; `sekunden_bis_auftrag` trägt denselben Wert.
+
+**Fragt `/pp` zu viel** (eine Rückfrage bei einer Aufgabe der Klasse S, das sind 01 und 02, oder mehr als eine Rückfrage-Runde), schärft die Regel im Skill (Commit auf `feat/skill-v0`, danach neu installiert) und wiederholt die Aufgabe einmal; beide Läufe zählen, der Wortlaut der Änderung steht dann hier. Sonst wird kein Lauf wiederholt.
+
+**Für 08, 09 und 10** (bei B ohne zweiten Zug) steht die Festlegung für C noch aus; das Werkzeug verweigert C dort bis zu ihr (Tag 9). Heute laufen die Aufgaben 01 bis 06.
+
+**Schwellen von G1.** Die sechs Pakete zur blinden Nachbewertung sind am 2026-10-26 unbewertet geblieben (alle `bewertung.md` leer), B ist nicht verschoben. Es gelten die Schwellen wie festgeschrieben: Recall 90,3 %, Raster 14,7, Aufgabe 12 rund 73 %. Der Zwischenstand auf 01 bis 06 ist keine Entscheidung; die fällt an Tag 10 auf allen elf Aufgaben mit B-Ergebnis.
+
+**Nach dem Lauf:** Gates einzeln nacheinander; danach die C-Zweige der Kopie per `git bundle` sichern und entfernen (Punkt 7 des Rahmens); Worktrees nur mit `--cleanup`.
+
 ## Ergebnisse
 
 **Basislinie A, 2026-10-26** (`results/2026-10-26-basislinie.csv`, zwölf Läufe, Modell `claude-opus-5-5[1m]`, Claude Code 2.1.296; B steht weiter unten, C folgt):
