@@ -322,6 +322,45 @@ Kosten über die elf Aufgaben: B 14,83 USD, C 18,46 USD (die lesenden Aufgaben h
 6. **12: das stärkste Ergebnis.** In einem Repo ohne Regeldatei kommt der Auftrag auf 9 von 11 Gold-Fakten (B 6): er belegt `_serialize`, beide Aufrufer, die Unberührtheit von `helper/cookie`, die Typ-Ebene als offenen Punkt und die konkreten Testaufrufe; es fehlen die zweite Testdatei und der Stil des Repos. Kriterium 4 von G1 ist erreicht.
 7. **K9, K3, K4.** Zeit bis zum Auftrag in 07 bis 12 zwischen 46 und 121 s (alle innerhalb der Ziele von M, L und XL). Länge ausserhalb des Korridors: 12 mit 592 Wörtern bei M, dazu 01, 02 und 05 aus Teil 1, zusammen 4 von 12. Rückfragen: 07 (L) und 08 (XL) je eine, wie erlaubt.
 
+**Lauf C v1 (alle zwölf Aufgaben), 2026-10-27** (`results/2026-10-27-v1-skill-v1.csv`, zwölf Zeilen; Skill unverändert bei `66d9b7b`, Festlegung "Bedingung C v1" oben, vor dem ersten Lauf committet; bewertet durch Claude, nicht blind). Vier Wellen zu je drei Läufen (08, 09, 10; 07, 11, 12; 01, 02, 03; 04, 05, 06), kein Abbruch, überall `is_error` false, `/pp` geladen und vor dem Ja nichts geändert in 12 von 12 Läufen, alle neun Gates (01 bis 07, 11, 12) beim ersten Versuch grün. Kosten 23,66 USD für alle Züge (v0: 21,12), nach zwei Wellen 9,56 USD (Grenze 10) und am Ende unter der Grenze von 26 USD. Während der Wellen habe ich zunächst nur die Kosten der Ausführungszüge mitgezählt (5,80 USD nach zwei Wellen); die Summe aller Züge, auf die sich die Grenzen beziehen, steht in der CSV und lag unter beiden Grenzen.
+
+| # | Modus | Recall v0 → v1 | Raster v0 → v1 | Erfolg v0 → v1 | Wörter | bis Auftrag, s |
+|---|---|---|---|---|---|---|
+| 01 | voll | 8/8 → 8/8 | 16 → 16 | ja → ja | 134 | 61 |
+| 02 | voll | 6/7 → 6/7 | 13 → 14 | ja → ja | 195 | 40 |
+| 03 | voll | 5/8 → 7/8 | 14 → 15 | teils → ja | 143 | 34 |
+| 04 | voll | 9/9 → 9/9 | 16 → 16 | ja → ja | 476 | 75 |
+| 05 | voll | 7/9 → 8/9 | 11 → 15 | teils → ja | 460 | 91 |
+| 06 | voll | 11/12 → 11/12 | 16 → 16 | ja → ja | 622 | 70 |
+| 07 | voll | 6/9 → 7/9 (kein B) | 8 → 15 (kein B) | nein → ja (kein B) | 469 | 107 |
+| 08 | lesend | 5/9 → 6/9 | 14 → 14 | ja → ja | 1009 | 110 |
+| 09 | lesend | 7/8 → 7/8 | 14 → 16 | teils → ja | 695 | 96 |
+| 10 | lesend | 11/11 → 11/11 | 16 → 16 | ja → ja | 500 | 77 |
+| 11 | voll | 6/7 → 6/7 | 15 → 15 | ja → ja | 342 | 56 |
+| 12 | voll | 9/11 → 9/11 | 14 → 14 | teils → teils | 417 | 58 |
+
+**Gesamt über die elf Aufgaben mit B-Ergebnis (01 bis 06 und 08 bis 12), `vergleich.mjs`:**
+
+| Kriterium von G1 | Schwelle | B | v0 | v1 | erreicht (v1) |
+|---|---|---|---|---|---|
+| 1 Recall | 90,3 % (90 von 99) | 83,8 % (83) | 84,8 % (84) | 88,9 % (88) | **nein**, es fehlen 2 Gold-Fakten |
+| 2 Raster | Summe 162 (Mittel 14,7) | 13,91 (153) | 14,45 (159) | 15,18 (167) | ja, 5 Punkte darüber |
+| 3 K2 und K11 null, `/pp` ändert vor dem Ja nichts | | 0, 0 | 0, 0; 0 von 12 | 0, 0; 0 von 12 | ja |
+| 3 Erfolg nicht schlechter als B | 8 ja | 8 ja, 3 teils | 7 ja, 4 teils | 10 ja, 1 teils (nur 12) | ja |
+| 4 Aufgabe 12, Recall | 8 von 11 | 54,5 % | 81,8 % | 81,8 % (9 von 11) | ja |
+| 5 K8, Auftrag höchstens rund 15 % der Ausführung (M, L) | | | 17 bis 74 % (01 bis 06) | 04 45 %, 05 51 %, 06 18 %, 07 51 % (01 64 %, 02 73 %, 03 39 %, 11 67 %, 12 53 %) | **nein** |
+
+Nach der Regel wie geschrieben ist G1 damit ein zweites Mal verfehlt: Kriterium 1 um zwei Gold-Fakten, Kriterium 5 deutlich. Die Kriterien 2 bis 4 sind erreicht. Die Entscheidung darüber (E-21: zweimal verfehlt beendet 2.0 in dieser Form) fällt nicht hier.
+
+**Was v1 zeigt** (nicht nachträglich geglättet; jeder Abstand zu v0 ist nicht blind bewertet und liegt in der Streuung einer solchen Bewertung):
+
+1. **Wo der Zuwachs gegenüber v0 steckt** (Recall +4 Fakten, Raster +8 Punkte, Erfolg von 7 auf 10 ja): 03 (+2 Fakten, Erfolg teils → ja, die Kommentar-Änderung fehlt), 05 (+1 Fakt, Raster 11 → 15, die Deutung von "beim nächsten Mal" ist jetzt die des Golds), 07 (`hero.tsx` bleibt unberührt, Erfolg nein → ja, Raster 8 → 15), 09 (das Dokument selbst statt Gliederung, Erfolg teils → ja, Raster 14 → 16). Dazu 08 (+1 Fakt im Ergebnis). Bei 01, 02, 04, 06, 09, 10, 11 und 12 ist der Recall gleich geblieben.
+2. **Kontrollen der Hebel:** (a) 07: `hero.tsx` wird nicht gewählt und nicht angefasst, steht aber in der Rückfrage als Option b mit dem Hinweis auf die Nicht-anfassen-Liste. (b) 09: erfüllt, der Auftrag hat kein "zuerst Plan, dann Freigabe". (c) Alle vier Referenzen sind in 12 von 12 Läufen gelesen worden; `referenzen_gelesen` zeigt bei 08 nur 0, weil der Agent sie mit `cd … && cat a b c d` geholt hat: eine Lücke des Zählers, nicht des Skills. (e) Nur teilweise: 05 und 08 nennen mehrere Lesarten, tragen aber einen Standard (a), der bei Schweigen gilt; 07 trägt keinen. (f) 08: das Ergebnis beginnt mit den Fakten des Auftrags, verliert aber zwei von acht (Recall des Ergebnisses 6, des Auftrags 8; bei v0 5 und 8).
+3. **Der Recall hängt an Einzelurteilen.** Sieben Fakten habe ich nicht gezählt, die eine grosszügigere Lesart zählen würde (03 Gold 6, 05 Gold 2, 07 Gold 4, 08 Gold 4 und 5, 09 Gold 6, 02 Gold 3); neun habe ich gezählt, die eine strengere Lesart streichen würde (zum Beispiel die 400-Zeilen-Grenze bei 04 und 06, das UTC-Datum bei 02, PlanKey bei 08, Kopfkommentar bei 03). Zwei grosszügigere Urteile reichten für 90, drei strengere brächten 85. Ohne blinde Bewertung bleibt der Befund "knapp verfehlt" innerhalb der Streuung. Die Einzelheiten stehen in der Vault-Notiz.
+4. **K8 bleibt verfehlt, und das ist keine Frage der Bewertung.** Der Auftrag kostet 0,3 bis 1,2 USD (das Lesen des Repos), die Ausführung danach 0,5 bis 3,4 USD; nur 06 (L) kommt mit 18 % in die Nähe (bei v0 17 %). K3: drei von zwölf Aufträgen ausserhalb des Längenkorridors (02, 04, 05; bei v0 vier), Ziel höchstens einer. K9: die S-Aufträge brauchen 34 bis 61 s (Ziel unter 30 s), 05 mit 91 s liegt knapp über 90 s. Der Tool-Wert für 03 (26 %) rechnet das Vorspiel in die Ausführung; nach der Definition oben sind es 39 %.
+5. **Rückfragen:** je eine bei 05, 07 und 08, wie bei v0. Keine der Rückfragen betrifft S; in keinem Lauf hat `/pp` vor dem Ja etwas geändert. Die Läufe enden fast alle mit einer Bitte um Freigabe von Git-Befehlen (enge Freigaben des Rigs, wie bei v0); das zählt nicht als Nachlieferung.
+6. **Geheimnisse (11):** null Treffer der vier Formen in allen zwölf Rohordnern (Auftrag, Antwort, Diff, Verlauf). Erfundenes (K2): null; alle Pfade mit `check-paths.mjs`, alle Bezeichner und Zeilenangaben gegen die geprüften Commits (08 und 10 Zeile für Zeile).
+
 ### Go/No-Go G1 (neu gefasst am 2026-10-26)
 
 Ein absoluter Abstand taugt nicht, wenn der Massstab nahe am Maximum liegt. Gemessen wird, welcher Teil der Lücke von B zum Maximum geschlossen wird. **Go**, wenn alles gilt (C gegen B auf den elf Aufgaben, bei denen B ein Ergebnis hat, derselbe Stand, dasselbe Modell, Recall und Raster wie bei B am Auftrag gezählt):
