@@ -326,7 +326,7 @@ async function main() {
   const task = TASKS[id] ?? TASKS[Number(id)];
   if (!task) throw new Error(`Unbekannte Aufgabe: ${opts.task}`);
   if (!["A", "B", "C"].includes(opts.condition)) throw new Error("Umgesetzt sind die Bedingungen A, B und C.");
-  if (opts.condition === "C" && TASKS[id]?.nurPlan) throw new Error(`Aufgabe ${id}: die Festlegung für C steht noch aus (eval/README.md, "Bedingung C"), das Werkzeug läuft dort nicht.`);
+  // Bei C heisst `nurPlan` der Modus "lesend" (08 bis 10): Zug 2 im Modus default, kein Zug 3 (eval/README.md, "Bedingung C für 07 bis 12").
 
   const evalDir = resolve(opts.evalDir ?? process.env.PP_EVAL_DIR ?? join(REPO_ROOT, "..", "pp-eval"));
   const repo = REPOS[task.repo];
@@ -386,6 +386,8 @@ async function main() {
   let auftragState = null;
   let skillSignals = null;
   let abbruch = null;
+  let ergebnisState = null;
+  const lesend = opts.condition === "C" && Boolean(task.nurPlan);
   if (opts.condition === "C") {
     // C, erster Zug: `/pp` mit dem rohen Satz im Modus default (ohne acceptEdits): `/pp` darf nichts ändern. Der Auftrag
     // ist der erste Codeblock vom Typ `text` der Antwort. Ohne Block fragt der Skill zurück: genau eine Runde "ok, nimm die Vorschläge".
@@ -418,12 +420,18 @@ async function main() {
     else if (!auftragState.unveraendert) abbruch = "auftrag-hat-dateien-geaendert";
     else if (!order) abbruch = "kein-auftrag";
     if (!abbruch) {
-      run = await runClaude({ cwd: worktree, prompt: EXECUTE, resume: session, deny, allow, budget, timeoutMs });
+      run = await runClaude({ cwd: worktree, prompt: EXECUTE, resume: session, deny, allow, budget, timeoutMs, mode: lesend ? "default" : "acceptEdits" });
       writeFileSync(join(outDir, "claude.json"), run.stdout);
       session = run.json?.session_id ?? session;
       remember(run);
-      // Verlangt der Auftrag zuerst einen Plan mit Freigabe (L, XL), hat Zug 2 nichts geändert: dann einmal die Freigabe wie bei B.
-      if (callOk(run) && JSON.stringify(worktreeState(worktree, repo.links)) === JSON.stringify(nachher)) {
+      if (lesend) {
+        // Modus lesend (08 bis 10): das Ergebnis von Zug 2 ist der Plan, das Dokument oder der Bericht; nichts darf sich ändern.
+        writeFileSync(join(outDir, "ergebnis.md"), `${String(run.json?.result ?? "").trim()}\n`);
+        const danach = worktreeState(worktree, repo.links);
+        ergebnisState = { vorher: nachher, nachher: danach, unveraendert: JSON.stringify(nachher) === JSON.stringify(danach) };
+        writeFileSync(join(outDir, "ergebnis-zustand.json"), JSON.stringify(ergebnisState, null, 2));
+      } else if (callOk(run) && JSON.stringify(worktreeState(worktree, repo.links)) === JSON.stringify(nachher)) {
+        // Verlangt der Auftrag zuerst einen Plan mit Freigabe (L, XL), hat Zug 2 nichts geändert: dann einmal die Freigabe wie bei B.
         run3 = await runClaude({ cwd: worktree, prompt: APPROVAL, resume: session, deny, allow, budget, timeoutMs });
         writeFileSync(join(outDir, "claude-zug3.json"), run3.stdout);
         session = run3.json?.session_id ?? session;
@@ -523,6 +531,9 @@ async function main() {
             zug3: run3 !== null,
             auftrag_zeichen: order.length,
             auftrag_woerter: order.split(/\s+/).filter(Boolean).length,
+            modus: lesend ? "lesend" : "voll",
+            ergebnis_unveraendert: ergebnisState ? ergebnisState.unveraendert : null,
+            ergebnis_zeichen: lesend ? String(run?.json?.result ?? "").length : null,
             auftrag_unveraendert: auftragState.unveraendert,
             auftrag_zustand: auftragState,
             skill_geladen: skillSignals.verlauf || skillSignals.antwort,
