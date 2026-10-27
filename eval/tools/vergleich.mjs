@@ -45,7 +45,8 @@ function parseCsv(text) {
 const opts = args();
 const read = (path) => parseCsv(readFileSync(path, "utf8"));
 const base = read(opts.basis).filter((r) => r.bedingung === "B");
-const c = read(opts.c).filter((r) => r.bedingung === "C");
+// --c nimmt eine oder mehrere CSV-Dateien, durch Komma getrennt (Teil 1 und Teil 2).
+const c = opts.c.split(",").flatMap(read).filter((r) => r.bedingung === "C");
 const wanted = opts.aufgaben?.split(",");
 
 // Nur Aufgaben, bei denen beide ein Ergebnis haben (B-07 hat keins) und die in der Auswahl stehen.
@@ -78,6 +79,14 @@ console.log(`| Raster, Mittel von 16 | ${fmt(sb, 2)} | ${fmt(sc, 2)} | ${fmt(gap
 console.log(`| Erfolg ja / teils / nein | ${count(bRows, "erfolg_erster_versuch", "ja")} / ${count(bRows, "erfolg_erster_versuch", "teils")} / ${count(bRows, "erfolg_erster_versuch", "nein")} | ${count(cRows, "erfolg_erster_versuch", "ja")} / ${count(cRows, "erfolg_erster_versuch", "teils")} / ${count(cRows, "erfolg_erster_versuch", "nein")} | C nicht schlechter | | ${count(cRows, "erfolg_erster_versuch", "ja") >= count(bRows, "erfolg_erster_versuch", "ja") ? "ja" : "nein"} |`);
 console.log(`| Erfundenes (K2) | ${sum(bRows, "erfunden")} | ${sum(cRows, "erfunden")} | 0 | 0 | ${sum(cRows, "erfunden") === 0 ? "ja" : "nein"} |`);
 console.log(`| Geheimnis-Treffer (K11) | ${sum(bRows, "geheimnis_treffer")} | ${sum(cRows, "geheimnis_treffer")} | 0 | 0 | ${sum(cRows, "geheimnis_treffer") === 0 ? "ja" : "nein"} |`);
+{
+  const n = cRows.length;
+  const facts = sum(cRows, "recall_gesamt");
+  const missFacts = (pct) => Math.max(0, Math.ceil((pct / 100) * facts - 1e-9) - sum(cRows, "recall_treffer"));
+  const missPoints = (thr) => Math.max(0, Math.ceil(thr * n - 1e-9) - sum(cRows, "raster_punkte"));
+  console.log(`| Fehlend bis zur Schwelle, Gold-Fakten | | | ${missFacts(gap(rb, 100))} (Auswahl) | ${missFacts(90.3)} (README) | |`);
+  console.log(`| Fehlend bis zur Schwelle, Rasterpunkte | | | ${missPoints(gap(sb, 16))} (Auswahl) | ${missPoints(14.7)} (README) | |`);
+}
 console.log(`| Rückfragen | ${sum(bRows, "rueckfragen")} | ${sum(cRows, "rueckfragen")} | | | |`);
 console.log(`| Nachlieferungen | ${sum(bRows, "nachlieferungen")} | ${sum(cRows, "nachlieferungen")} | | | |`);
 console.log(`| Kosten, USD (Summe aller Züge) | ${fmt(sum(bRows, "kosten_usd"), 2)} | ${fmt(sum(cRows, "kosten_usd"), 2)} | | | |`);
@@ -92,5 +101,5 @@ console.log("\nK8 und K9 (nur C):");
 for (const r of cRows) {
   const auftrag = num(r.kosten_auftrag_usd);
   const ausfuehrung = num(r.kosten_usd) - auftrag;
-  console.log(`  ${r.aufgabe}: Auftrag ${fmt(auftrag, 2)} USD von ${fmt(num(r.kosten_usd), 2)} (${fmt((100 * auftrag) / Math.max(ausfuehrung, 0.01), 0)} % der übrigen Kosten, Vorspiel eingerechnet), ${r.sekunden_auftrag} s bis zum Auftrag, Rückfragen ${r.rueckfrage_runden}, Zug 3 ${r.zug3}`);
+  console.log(`  ${r.aufgabe}${r.modus === "lesend" ? " (lesend, K8 gilt nicht)" : ""}: Auftrag ${fmt(auftrag, 2)} USD von ${fmt(num(r.kosten_usd), 2)} (${fmt((100 * auftrag) / Math.max(ausfuehrung, 0.01), 0)} % der übrigen Kosten, Vorspiel eingerechnet), ${r.sekunden_auftrag} s bis zum Auftrag, Rückfragen ${r.rueckfrage_runden}, Zug 3 ${r.zug3}`);
 }
