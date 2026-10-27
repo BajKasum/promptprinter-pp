@@ -3,11 +3,11 @@ name: pp
 description: PromptPrinter work order. Turns the user's next development intent into a checked, context-aware work order for this coding agent, using the current conversation, the repository state and the project rules. Use only when the user invokes /pp or $pp.
 argument-hint: <what should happen next>
 disable-model-invocation: true
-allowed-tools: Bash(node *context.mjs*)
+allowed-tools: Bash(node *context.mjs*) Read(~/.claude/skills/pp/**)
 license: MIT
 compatibility: Needs git and Node.js 22+ for scripts/context.mjs; works in a reduced mode without them.
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   author: "PromptPrinter"
 ---
 
@@ -41,9 +41,16 @@ The user's intent: $ARGUMENTS
 `<skill-dir>` below is the folder that contains this SKILL.md
 (in Claude Code: ${CLAUDE_SKILL_DIR}). Quote the path when you run it.
 
+## Step 0: Load the references
+
+Once the intent is not empty, read all four files in `<skill-dir>/references/`
+with the Read tool: task-types.md, blocks.md, checklist.md, targets.md. They are
+short, about 1.7k tokens together. Read them even for size S. Do not skip one
+and do not work from memory of them.
+
 ## Step 1: Classify
 
-Read references/task-types.md. Decide:
+Use references/task-types.md. Decide:
 - type: change, bugfix, feature, refactor, architecture, large-change, review
 - size: S, M, L or XL. Count logical places, not files (five translation
   files for one key are one place). When unsure, take the larger size.
@@ -101,19 +108,40 @@ model, the security model or the scope. Every conflict goes into the
 question (if blocking) or into "assumptions and open points". Never resolve
 a conflict silently.
 
+Protected areas. A project rule that marks a file or area as stable, frozen,
+generated, vendored or "do not touch" is never overridden by a default or an
+assumption. Never offer such a file as a candidate, not even for a "move only"
+or "harmless" change. If the intent's literal target is protected, the default
+is the nearest unprotected target, and the protected one is named as an
+alternative that needs the user's explicit word. If no unprotected target
+exists, the gap is blocking: ask.
+
 ## Step 5: Ask (only if blocking, never for S)
 
-One message, at most 5 numbered points, each with a proposed default
-("If you don't say otherwise, I'll ..."). Then stop. When the user answers,
-or says "ok" or "take the defaults", continue with step 6.
+One message, at most 5 numbered points, of two kinds:
+- Meaning: the intent can be read in more than one way (which trigger, which
+  screen, which behaviour, which scope). Quote the user's own words and list
+  the 2 to 3 readings neutrally, the one closest to the literal words first.
+  Do not mark one as the likely one.
+- Choice: where or how, when the repo does not decide. Propose a default
+  ("If you don't say otherwise, I'll ..."), within the protected-area rule.
+
+Then stop. When the user answers, or says "ok" or "take the defaults",
+continue with step 6. A meaning point the user did not settle is read as the
+reading closest to the literal words and listed under "Assumptions and open
+points".
 
 ## Step 6 and 7: Write the work order
 
-Read references/blocks.md and references/targets.md. Build the order from
+Use references/blocks.md and references/targets.md. Build the order from
 blocks; a block goes in only if it carries project-specific information.
 Keep within the length corridor of the size. Write in the language of the
-intent; keep identifiers, paths and commands unchanged. For L and XL: split
-into phases and start with "work out a plan first and wait for approval".
+intent; keep identifiers, paths and commands unchanged. For L and XL that
+change code: split into phases and start with "work out a plan first and wait
+for approval". For the types architecture and review the order asks for the
+deliverable itself (the document or the report), says where it is returned
+(in the answer, no file) and that nothing is changed; it does not add "plan
+first", because the document is the plan.
 Mention open changes in the working tree and the git workflow rules if the
 current branch conflicts with them.
 
@@ -136,7 +164,10 @@ Then stop.
 
 - "run", "go", "ausführen", "los": carry out the work order now, under the
   normal permissions of this host, as if the user had typed it. Follow its
-  own instructions (for L and XL: plan first, wait for approval).
+  own instructions. If it starts with a plan (L and XL that change code), the
+  plan first restates the facts of the order that it relies on (current state,
+  rules, non-goals, assumptions) and then adds what it found, so it can be
+  approved on its own. Then wait for approval.
 - "save", "speichern": pipe the order into
   `node "<skill-dir>/scripts/context.mjs" save --slug <short-name>` and report the path.
 - A change request ("shorter", "without migration"): repeat steps 8 and 9
