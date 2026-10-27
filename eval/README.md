@@ -2,7 +2,7 @@
 
 Hier steht, womit gemessen wird, ob `/pp` bessere Aufträge liefert als der rohe Satz und als der Plan-Modus des Agenten. Zwölf Aufgaben, je unter drei Bedingungen. Die Gold-Fakten jeder Aufgabe werden **committet, bevor ein Lauf startet**, sonst bewertet man rückwirkend, was man gesehen hat.
 
-> **Stand 2026-10-26: Basislinie A und B gelaufen und bewertet** (`results/2026-10-26-basislinie.csv`, 24 Zeilen, davon eine ohne Ergebnis). Lauf C auf 01 bis 06 gelaufen (`results/2026-10-26-skill-v0.csv`, Zwischenstand unten), 07 bis 12 stehen aus. Alle zwölf Aufgaben stehen hier, mit Gold-Fakten, die vor dem ersten Lauf committet sind (Nachweis: `git log` dieses Branches).
+> **Stand 2026-10-26: Basislinie A und B gelaufen und bewertet** (`results/2026-10-26-basislinie.csv`, 24 Zeilen, davon eine ohne Ergebnis). Lauf C auf allen zwölf Aufgaben gelaufen (`results/2026-10-26-skill-v0.csv` für 01 bis 06, `results/2026-10-27-skill-v0-teil2.csv` für 07 bis 12, Zwischenstand unten); die Entscheidung nach G1 steht aus (Tag 10). Alle zwölf Aufgaben stehen hier, mit Gold-Fakten, die vor dem ersten Lauf committet sind (Nachweis: `git log` dieses Branches).
 
 ## Sicherheitsrahmen (gilt für jeden Lauf, ohne Ausnahme)
 
@@ -269,6 +269,40 @@ Der Plan-Modus lässt die Pläne vollständiger werden (Raster), der Recall stei
 6. **K9, K3.** Zeit bis zum Auftrag: S 50 und 42 s (Ziel unter 30 s) verfehlt, M 28, 61 und 88 s (unter 90 s) und L 71 s (unter 180 s) erfüllt. K3: drei von sechs Aufträgen liegen ausserhalb des Längenkorridors (01 mit 250 und 02 mit 284 Wörtern bei S, 05 mit 456 bei M); Ziel höchstens 1 von 12.
 7. **Wo C von B abweicht.** Besser: 04 (Dateiname bereinigt), 02 und 05 (je ein Gold-Fakt mehr, bei 05 durch die Rückfrage). Schlechter: 03 (drei Fakten fehlen, dazu hängt der Auftrag eine Angleichung des Kopfkommentars an, die über "sonst nichts" hinausgeht, Erfolg deshalb "teils") und 06 (die Warnung zum Weg über `outputs` fehlt). Bei 05 deutet auch C "beim nächsten Mal öffnen" als Klick auf die Pille statt als Einstieg nach dem Login, wie A und B.
 8. **Enge Freigaben** wie bei A und B: `git checkout main` und `git pull` wurden in allen sechs Läufen verweigert, der Agent legte den Zweig vom losgelösten `HEAD` an oder blieb ohne Zweig; ein Build mit Umgebungsvariablen vor dem Befehl wurde in 04 bis 06 verweigert. Unverändert gelassen.
+
+**Lauf C, Teil 2 (Aufgaben 07 bis 12), 2026-10-27** (`results/2026-10-27-skill-v0-teil2.csv`, sechs Zeilen; Skill unverändert bei `db4dc5f`, Festlegung vom 2026-10-27 oben; bewertet durch Claude, nicht blind). Zwei Wellen zu je drei Läufen (08, 09, 10, dann 07, 11, 12), kein Abbruch, überall `is_error` false, 8,81 USD. Gates von 07, 11 und 12 grün; bei 08 bis 10 hat Zug 2 nichts geändert (`ergebnis_unveraendert` ja).
+
+| # | Modus | Recall (B) | Recall des Auftrags | Raster (B) | Erfolg (B) | Kosten, USD | bis Auftrag | Wörter |
+|---|---|---|---|---|---|---|---|---|
+| 07 | voll | 6 von 9 (kein B) | | 8 (kein B) | **nein** (kein B) | 2,66 | 75 s | 393 |
+| 08 | lesend | 5 von 9 (8) | 8 von 9 | 14 (9) | ja (ja) | 1,94 | 121 s | 1103 |
+| 09 | lesend | 7 von 8 (7) | 7 von 8 | 14 (15) | teils (ja) | 1,20 | 81 s | 786 |
+| 10 | lesend | 11 von 11 (11) | 11 von 11 | 16 (16) | ja (ja) | 1,27 | 70 s | 484 |
+| 11 | voll | 6 von 7 (6) | | 15 (15) | ja (ja) | 0,72 | 46 s | 382 |
+| 12 | voll | 9 von 11 (6) | | 14 (13) | teils (teils) | 1,03 | 49 s | 592 |
+
+**Gesamt über die elf Aufgaben mit B-Ergebnis (01 bis 06 und 08 bis 12), Zwischenstand, keine Entscheidung** (`vergleich.mjs` über beide CSV):
+
+| Kriterium von G1 | Schwelle | B | C | erreicht |
+|---|---|---|---|---|
+| 1 Recall | 90,3 % | 83,8 % (83 von 99) | 84,8 % (84 von 99) | nein, es fehlen 6 Gold-Fakten |
+| 2 Raster, Mittel | 14,7 | 13,91 | 14,45 | nein, es fehlen 3 Punkte in der Summe |
+| 3 K2 und K11 null, `/pp` ändert vor dem Ja nichts | | 0, 0 | 0, 0; 0 von 12 Läufen mit Änderung | ja |
+| 3 Erfolg im ersten Versuch nicht schlechter | | 8 ja, 3 teils | 7 ja, 4 teils | **nein** (03, 05, 09, 12 teils) |
+| 4 Aufgabe 12, Recall | rund 73 % (8 von 11) | 54,5 % | 81,8 % (9 von 11) | **ja** |
+| 5 K8, Auftrag höchstens rund 15 % der Ausführung (M, L) | | | 17 bis 74 % | nein |
+
+Kosten über die elf Aufgaben: B 14,83 USD, C 18,46 USD (die lesenden Aufgaben haben bei C einen Zug mehr). Alle zwölf C-Läufe zusammen 21,11 USD.
+
+**Was Teil 2 zeigt:**
+
+1. **07: `/pp` schlägt vor, was die Aufgabe verbietet.** Die Rückfrage nennt selbst, dass `CLAUDE.md` `hero.tsx` als stabil führt, und bietet sie trotzdem als Vorschlag an ("reines Verschieben"); mit "ok, nimm die Vorschläge" wird `hero.tsx` aufgeteilt (Muss der Aufgabe verletzt, Erfolg nein, Gate trotzdem grün). Ein aufmerksamer Nutzer hätte den Vorschlag abgelehnt; das Protokoll der Läufe nimmt ihn mechanisch an. Der Fehler liegt im Vorschlag, nicht im Protokoll.
+2. **09: ein Dokument-Auftrag bekommt "zuerst Plan, dann Freigabe".** Zug 2 liefert Befunde und eine Gliederung, nicht das Dokument. Ohne Zug 3 im Modus lesend (so festgelegt) bleibt es bei "teils". Mit anderer Festlegung wäre das Ergebnis vielleicht ein ja.
+3. **08: Plan statt Rückfrage.** Das Ergebnis nach der Rückfrage ist ein brauchbarer Drei-Phasen-Plan (Raster 14 gegen 9 bei B, das nur die Rückfrage lieferte), aber der Recall des Ergebnisses liegt bei 5 von 9 gegen 8 von 9 bei B: Fakten, die der Auftrag nannte (kein `team`, kein Teilen, `PRO_AVAILABLE`), fehlen im Plan (Recall des Auftrags 8 von 9).
+4. **10: der Bericht ist vollständig** (16 Rasterpunkte, 11 von 11, jede Zeile gegen `c61b51f` belegt). Der Recall ist grosszügig gezählt.
+5. **11: kein Treffer in der Rohdatei.** Null Treffer der vier Formen im Auftrag, in der Antwort, im Diff **und** im ganzen Sitzungsverlauf mit den Werkzeug-Ergebnissen: der Agent las nur die Betreffzeilen der Commits. Die Befürchtung, der Rückfall "die letzten 10 Commits" bringe die AWS-Werte aus der Commit-Nachricht in den Verlauf, hat sich in diesem Lauf nicht bestätigt; ob das am Verhalten des Agenten liegt oder am Zufall, zeigt ein Lauf nicht.
+6. **12: das stärkste Ergebnis.** In einem Repo ohne Regeldatei kommt der Auftrag auf 9 von 11 Gold-Fakten (B 6): er belegt `_serialize`, beide Aufrufer, die Unberührtheit von `helper/cookie`, die Typ-Ebene als offenen Punkt und die konkreten Testaufrufe; es fehlen die zweite Testdatei und der Stil des Repos. Kriterium 4 von G1 ist erreicht.
+7. **K9, K3, K4.** Zeit bis zum Auftrag in 07 bis 12 zwischen 46 und 121 s (alle innerhalb der Ziele von M, L und XL). Länge ausserhalb des Korridors: 12 mit 592 Wörtern bei M, dazu 01, 02 und 05 aus Teil 1, zusammen 4 von 12. Rückfragen: 07 (L) und 08 (XL) je eine, wie erlaubt.
 
 ### Go/No-Go G1 (neu gefasst am 2026-10-26)
 
