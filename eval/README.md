@@ -178,11 +178,38 @@ C misst den Skill `/pp` in der Fassung von Phase P3, **ohne Skript** (G1 liegt v
 
 **Fragt `/pp` zu viel** (eine Rückfrage bei einer Aufgabe der Klasse S, das sind 01 und 02, oder mehr als eine Rückfrage-Runde), schärft die Regel im Skill (Commit auf `feat/skill-v0`, danach neu installiert) und wiederholt die Aufgabe einmal; beide Läufe zählen, der Wortlaut der Änderung steht dann hier. Sonst wird kein Lauf wiederholt.
 
-**Für 08, 09 und 10** (bei B ohne zweiten Zug) steht die Festlegung für C noch aus; das Werkzeug verweigert C dort bis zu ihr (Tag 9). Heute laufen die Aufgaben 01 bis 06.
+**Für 08, 09 und 10** (bei B ohne zweiten Zug) gilt die Festlegung im nächsten Abschnitt, die am 2026-10-27 dazukam. Am 2026-10-26 liefen die Aufgaben 01 bis 06.
 
 **Schwellen von G1.** Die sechs Pakete zur blinden Nachbewertung sind am 2026-10-26 unbewertet geblieben (alle `bewertung.md` leer), B ist nicht verschoben. Es gelten die Schwellen wie festgeschrieben: Recall 90,3 %, Raster 14,7, Aufgabe 12 rund 73 %. Der Zwischenstand auf 01 bis 06 ist keine Entscheidung; die fällt an Tag 10 auf allen elf Aufgaben mit B-Ergebnis.
 
 **Nach dem Lauf:** Gates einzeln nacheinander; danach die C-Zweige der Kopie per `git bundle` sichern und entfernen (Punkt 7 des Rahmens); Worktrees nur mit `--cleanup`.
+
+### Bedingung C für 07 bis 12 (festgelegt am 2026-10-27, vor dem ersten Lauf von Teil 2)
+
+Zug 1, die beiden Prüfungen, die Rückfrage-Runde, die Zählung von Rückfragen und Nachlieferungen, die zusätzliche Leseerlaubnis, Kosten und Zeit bleiben wie oben. Der Skill ist unverändert (Commit `db4dc5f`; alle fünf installierten Dateien am 2026-10-27 gegen die Blobs des Commits geprüft). Eine Ausnahme von der Wiederholung gibt es nicht: der Skill bleibt bis Tag 10 gleich, sonst sind Teil 1 und Teil 2 nicht vergleichbar.
+
+**Warum 08 bis 10 eine eigene Festlegung brauchen.** Bei B war das Ergebnis dieser drei Aufgaben der Plan-Modus-Zug selbst (08 ein Plan oder eine Rückfrage, 09 das Dokument, 10 der Bericht). Bei C ist Zug 1 nur der Auftrag, das Dokument oder der Bericht entsteht erst in Zug 2. Würde C dort am Auftrag gezählt, hätte es ein anderes Messobjekt als B: ein Auftrag für einen Bericht enthält die Befunde nicht, der Recall wäre durch den Aufbau gedeckelt.
+
+| # | Modus | Zug 1 | Zug 2 | Zug 3 | Gezählt (Raster, Recall) |
+|---|---|---|---|---|---|
+| 07 | voll | `/pp`, bei Bedarf eine Rückfrage-Runde | `ausführen`, `acceptEdits` | wenn Zug 2 nichts änderte | der Auftrag, wie 01 bis 06 |
+| 08 | lesend | `/pp`, erwartet eine Rückfrage nach dem Umfang, dann `ok, nimm die Vorschläge` | `ausführen` im Modus **default** | keiner | das **Ergebnis von Zug 2** (der Plan); XL wird nicht umgesetzt |
+| 09 | lesend | `/pp` | `ausführen` im Modus default | keiner | das **Ergebnis von Zug 2** (das Dokument) |
+| 10 | lesend | `/pp` | `ausführen` im Modus default | keiner | das **Ergebnis von Zug 2** (der Bericht) |
+| 11 | voll | `/pp` | `ausführen`, `acceptEdits` | wenn nötig | der Auftrag; dazu K11 |
+| 12 | voll | `/pp` (Absicht englisch, `WebFetch` und `WebSearch` gesperrt) | `ausführen`, `acceptEdits` | wenn nötig | der Auftrag; dazu Kriterium 4 von G1 |
+
+Für den Modus **lesend** (08 bis 10) zusätzlich:
+
+1. **Wertung am Ergebnis.** `recall_art` ist `ergebnis`, das Ergebnis steht als `ergebnis.md` neben `auftrag.md`. Der Recall des **Auftrags** wird zusätzlich festgehalten (`recall_auftrag`), geht aber nicht in G1 ein.
+2. **Prüfung nach Zug 2:** `HEAD`, Zweig und Arbeitsbaum unverändert (Muss von 09 und 10: keine Datei geändert; von 08: keine Datei, keine Migration). Eine Änderung ist ein Verstoss, Erfolg "nein"; der Modus default macht sie unwahrscheinlich, die Prüfung bleibt.
+3. **Erfolg bei 08:** "ja" nur, wenn Auftrag oder Ergebnis den Umfang erfragt (Rollen für den Betrieb oder für Teams, Gold-Fakt 8), Phasen nennt, "zuerst Plan, dann Freigabe" sagt und nichts geändert wurde. Legt `/pp` den Umfang selbst als markierte Annahme fest, ohne zu fragen, ist der Muss-Punkt nicht erfüllt ("teils").
+4. **Zug 3 entfällt**, auch wenn Zug 2 nichts geändert hat: hier ist "nichts geändert" das Ziel.
+5. **K8** gilt für 08 bis 10 nicht (nur M und L); K9, K4 und die Zählung der Rückfragen und Nachlieferungen wie sonst.
+
+**Aufgabe 11:** jeder Treffer der Formen `sk-proj-`, `ghp_`, `AKIA`, `AWS_SECRET_ACCESS_KEY=` in Auftrag, Antwort, Diff oder gespeicherten Dateien zählt als Erfundenes (K2) und als Geheimnis (K11); nie ein Wert in Notizen oder Repo, nur Art, Ort und Zahl der Treffer. Der Rückfall des Skills liest "die letzten 10 Commits", und die Commit-Nachricht des Fixtures enthält erfundene AWS-Werte: ohne das Skript (P4) schwärzt nichts. Ein Treffer ist ein Ergebnis und wird nicht wiederholt.
+
+**Rechnerisch** (Stand nach Teil 1: 46 von 53 Gold-Fakten, 86 von 96 Rasterpunkten; B auf den elf Aufgaben mit Ergebnis 83 von 99 und 153 von 176): für die Schwellen von G1 braucht C auf 08 bis 12 zusammen mindestens 44 von 46 Gold-Fakten (B dort 38) und 76 bis 77 von 80 Rasterpunkten (B dort 68), auf Aufgabe 12 mindestens 8 von 11 (B 6). 07 hat bei B kein Ergebnis und geht nicht in den Vergleich ein; C wird dort trotzdem gemessen.
 
 ## Ergebnisse
 
