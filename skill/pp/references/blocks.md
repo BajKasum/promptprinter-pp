@@ -10,7 +10,7 @@ Include a block only if it carries project-specific information.
 | 4 | Requirements | M and up | concrete, testable behaviour |
 | 5 | Non-goals | M and up, or when scope can creep | what must NOT be touched |
 | 6 | Rules and constraints | a project rule applies | only the relevant rules, with a pointer to the rule file; git workflow if the branch conflicts; open changes in the working tree |
-| 7 | Approach | L and up | steps; XL: "work out a plan first and wait for approval" |
+| 7 | Approach | L and up | steps; L and XL that change code: "work out a plan first and wait for approval", and the plan restates the facts of this order that it relies on (current state, rules, non-goals, assumptions) |
 | 8 | Edge cases | feature and bugfix from M | the 2 to 5 that can really happen here |
 | 9 | Security | a risk flag is set | threat, protection, a test that fails without it |
 | 10 | Tests and acceptance | always, at least one testable criterion | list from M |
@@ -35,5 +35,8 @@ Include a block only if it carries project-specific information.
 - M: Goal, Current state, Affected files, Requirements, Non-goals, Rules,
   Edge cases, Tests and acceptance, Verification, Report back.
 - L: M plus Approach and, if flagged, Security.
-- XL: Goal, "plan first and wait", Current state, Rules, Phases (each with
-  its own acceptance), Security, Non-goals, Assumptions, Report back.
+- XL (changes code): Goal, "plan first and wait", Current state, Rules, Phases
+  (each with its own acceptance), Security, Non-goals, Assumptions, Report back.
+- Document or report (architecture, review): Goal, Current state, Rules, What
+  the document must answer, Deliverable (format; returned in the answer, no
+  file), Non-goals (no code change), Assumptions, Report back. No "plan first".
