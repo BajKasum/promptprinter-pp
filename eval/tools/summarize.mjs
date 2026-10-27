@@ -26,6 +26,8 @@ const COLUMNS = [
   "recall_art", "kosten_plan_usd", "sekunden_plan", "plan_unveraendert",
   // nur bei C:
   "kosten_auftrag_usd", "sekunden_auftrag", "auftrag_unveraendert", "skill_geladen", "rueckfrage_runden", "zug3",
+  // ab Teil 2 (07 bis 12):
+  "modus", "ergebnis_unveraendert", "recall_auftrag",
 ];
 
 function args() {
@@ -74,7 +76,7 @@ for (let n = 1; n <= 12; n++) {
       sekunden_bis_auftrag: isPlan ? meta.sekunden_plan : isOrder ? meta.sekunden_auftrag : "", raster_punkte: r.raster_punkte, bemerkung: r.bemerkung,
       sekunden_gesamt: meta.sekunden + (meta.sekunden_plan ?? 0) + (meta.sekunden_auftrag ?? 0), turns: meta.turns, dateien_gelesen: meta.gelesen.length,
       dateien_geaendert: meta.geaendert.length, geheimnis_treffer: meta.geheimnis_treffer, ende: r.ende ?? meta.ende, verweigert: meta.verweigert.length,
-      recall_art: isPlan ? "plan" : isOrder ? "auftrag" : "lauf",
+      recall_art: isPlan ? "plan" : isOrder ? (meta.modus === "lesend" ? "ergebnis" : "auftrag") : "lauf",
       kosten_plan_usd: isPlan && meta.kosten_plan_usd !== null ? Number(meta.kosten_plan_usd).toFixed(2) : "",
       sekunden_plan: isPlan ? meta.sekunden_plan : "",
       plan_unveraendert: isPlan ? (meta.plan_unveraendert ? "ja" : "nein") : "",
@@ -84,6 +86,10 @@ for (let n = 1; n <= 12; n++) {
       skill_geladen: isOrder ? (meta.skill_geladen ? "ja" : "nein") : "",
       rueckfrage_runden: isOrder ? meta.rueckfrage_runden : "",
       zug3: isOrder ? (meta.zug3 ? "ja" : "nein") : "",
+      // Modus lesend (08 bis 10): gezählt wird das Ergebnis von Zug 2, der Recall des Auftrags steht zusätzlich da.
+      modus: isOrder ? (meta.modus ?? "voll") : "",
+      ergebnis_unveraendert: isOrder && meta.modus === "lesend" ? (meta.ergebnis_unveraendert ? "ja" : "nein") : "",
+      recall_auftrag: r.recall_auftrag,
     });
   }
 }
