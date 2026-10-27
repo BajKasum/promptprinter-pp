@@ -211,6 +211,24 @@ Für den Modus **lesend** (08 bis 10) zusätzlich:
 
 **Rechnerisch** (Stand nach Teil 1: 46 von 53 Gold-Fakten, 86 von 96 Rasterpunkten; B auf den elf Aufgaben mit Ergebnis 83 von 99 und 153 von 176): für die Schwellen von G1 braucht C auf 08 bis 12 zusammen mindestens 44 von 46 Gold-Fakten (B dort 38) und 76 bis 77 von 80 Rasterpunkten (B dort 68), auf Aufgabe 12 mindestens 8 von 11 (B 6). 07 hat bei B kein Ergebnis und geht nicht in den Vergleich ein; C wird dort trotzdem gemessen.
 
+### Bedingung C v1 (festgelegt am 2026-10-27, vor dem ersten Lauf von v1)
+
+Die zweite Messung nach der Verfehlt-Regel von G1 (E-21 im Vault): G1 war mit dem Skill v0 auf den elf Aufgaben mit B-Ergebnis verfehlt (Recall 84 von 99 Fakten bei verlangten 90, Raster Summe 159 bei verlangten 162, Erfolg 7 ja gegen 8 ja bei B, K8 17 bis 74 %; erreicht waren Aufgabe 12, K2, K11 und die Dateisperre). Der Skill wurde einmal überarbeitet und wird auf **allen zwölf Aufgaben** neu gemessen. **Zweimal verfehlt beendet 2.0 in dieser Form.**
+
+| Punkt | Festlegung |
+|---|---|
+| Skill | `skill/pp/` aus `feat/skill-v1`, Spitze `66d9b7b` (`SKILL.md` 0.2.0 und die vier Referenzdateien), am 2026-10-27 von Hand nach `~/.claude/skills/pp/` installiert, jede Datei gleich dem Blob des Commits (`git hash-object`); die Fassung v0 liegt gesichert in `pp-eval/backup/skill-pp-v0-db4dc5f`. Unverändert bis zur Auswertung, **keine Ausnahme** "Skill schärfen und wiederholen" |
+| Änderungen gegenüber v0 | (a) Dateien, die eine Projektregel als stabil oder unantastbar führt, werden nie vorgeschlagen; (b) kein "zuerst Plan" bei Aufträgen, deren Ergebnis selbst ein Dokument oder Bericht ist; (c) Schritt 0 liest alle vier Referenzen, dazu `Read(~/.claude/skills/pp/**)` in `allowed-tools`; (e) Rückfragen nach dem Sinn nennen mehrere Lesarten ohne vorgewählte, Wahlfragen behalten den Vorschlag; (f) der Plan bei L und XL übernimmt die Fakten des Auftrags. Nicht umgesetzt: (d) Längenkorridor für S |
+| Rig | wie v0: Kopie ohne Remote, bereinigte Umgebung (keine Variablen `CLAUDE*` und `ANTHROPIC*`), `--strict-mcp-config`, `git push` und `gh` gesperrt, 3 USD je Aufruf, dieselben Bash-Freigaben, Modell `claude-opus-5-5[1m]`, Claude Code 2.1.296, bei 12 `WebFetch` und `WebSearch` gesperrt. **Die Zusatzfreigabe `Read(~/.claude/skills/pp/**)` bleibt**, damit der Skill die einzige Änderung gegenüber v0 ist |
+| Probelauf zu (c) | ein Aufruf in einem Wegwerf-Repo (kein Eval-Lauf, 0,23 USD) im Modus default **ohne** die Zusatzfreigabe: `/pp` v1 las die vier Referenzen, `permission_denials` leer. Der Eintrag im Frontmatter trägt damit; eine Gegenprobe mit v0 an diesem Tag gibt es nicht (am 2026-10-26 wurde das Lesen bei v0 verweigert) |
+| Aufgaben, Modi, Zählung | unverändert: 01 bis 07, 11, 12 voll, 08 bis 10 lesend (Zug 2 im Modus default, gewertet am Ergebnis, `recall_art` ergebnis, kein Zug 3); Rückfrage-Runde, Prüfungen (`HEAD`, Zweig, Arbeitsbaum, `/pp` geladen), Zählung von Recall, Raster, Erfundenem, Rückfragen und Nachlieferungen wie unter "Bedingung C" und "Bedingung C für 07 bis 12" |
+| Ablage | Roh-Ausgaben in `pp-eval/results-roh/2026-10-27-v1/` (Option `--date 2026-10-27-v1`), CSV `eval/results/2026-10-27-v1-skill-v1.csv`; die Daten von v0 bleiben unberührt (die Werkzeuge überschreiben nichts) |
+| Wellen | vier Wellen zu je drei Läufen: 08, 09, 10; 07, 11, 12; 01, 02, 03; 04, 05, 06. Vor jeder Welle das 5-Stunden-Fenster prüfen, bei über 50 % stoppen. Nach zwei Wellen über 10 USD oder insgesamt über 26 USD stoppen (v0: 21,11 USD). Kein Lauf wird wiederholt, ein Abbruch ist ein Ergebnis |
+| Schwellen von G1 | unverändert: Recall mindestens 90 von 99 (90,3 %), Raster Summe 162 (festgeschrieben 14,7; die exakte Formel gäbe 163), Aufgabe 12 mindestens 8 von 11, Erfolg nicht schlechter als B (8 ja), K2 und K11 null, `/pp` ändert vor dem Ja keine Datei, K8 höchstens rund 15 % der Ausführung bei M und L (Kriterium 5, wie oben) |
+| Bewertung | durch Claude, nicht blind; die Abstände (ein Fakt von 99, ein halber Rasterpunkt je Aufgabe) liegen innerhalb der Streuung einer solchen Bewertung |
+| Kontrollen der Hebel (Diagnose, nicht G1) | (a) bei 07 wird `hero.tsx` nicht angeboten; (b) bei 09 fehlt "zuerst Plan, dann Freigabe" im Auftrag; (c) `referenzen_gelesen` ist in jedem Lauf vier; (e) bei 05 steht die Deutung von "beim nächsten Mal" als Frage mit mehreren Lesarten und ohne vorgewählte; (f) das Ergebnis von 08 übernimmt die Fakten des Auftrags |
+| Erwartung vor der Messung [A] | Erfolg mindestens so gut wie B, Recall rund 87 bis 88 %, Raster am Rand der Streuung, K8 weiter verfehlt; G1 wird mit über 80 % Wahrscheinlichkeit ein zweites Mal verfehlt |
+
 ## Ergebnisse
 
 **Basislinie A, 2026-10-26** (`results/2026-10-26-basislinie.csv`, zwölf Läufe, Modell `claude-opus-5-5[1m]`, Claude Code 2.1.296; B steht weiter unten, C folgt):
