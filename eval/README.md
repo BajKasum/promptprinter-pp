@@ -247,6 +247,28 @@ Die dritte Messung. Der Entscheid E-22 (Ende nach zwei verfehlten Messungen) ist
 | Kontrollen (Diagnose, nicht G1) | wie oft das Skript lief (`pack`, `search`, `check`) und mit welchem Ergebnis; ob "used in n files" und "tests:" im Auftrag ankommen; ob ein `hint:` den Lauf stört; K8 gegen v1 je Aufgabe |
 | Erwartung vor der Messung [A] | Erfolg mindestens 10 ja wie v1, Recall 89 bis 92 von 99 (Hebel: Verwendungszahlen bei 03 und 06, zugehörige Tests bei 12 und 05), Raster um 167, K8 weiter verfehlt (das Skript spart Lesen, der Auftrag bleibt über 15 % der Ausführung bei M); G1 wie geschrieben besteht mit rund 10 % Wahrscheinlichkeit, G1 ohne K8 mit rund 45 % |
 
+#### Ergebnis von C v2 (2026-10-28, CSV `results/2026-10-28-v2-skill-v2.csv`)
+
+Zwölf Läufe, alle gültig (`ende` success, Skill geladen, nichts vor dem Ja geändert, keine Geheimnisse, Erfundenes 0), vier Wellen, Gates der neun Umsetzungen grün (je beim ersten Versuch), 22,44 USD für alle Züge (v1: 23,66). Bewertet von Claude, nicht blind: jede Differenz von wenigen Fakten liegt in der Streuung.
+
+| Kriterium von G1 (elf Aufgaben mit B-Ergebnis) | Schwelle | B | v1 | v2 | erreicht |
+|---|---|---|---|---|---|
+| Recall | 90 von 99 | 83 | 88 | **82** | **nein**, es fehlen 8 |
+| Raster, Summe | 162 | 153 | 167 | 170 | ja |
+| Erfolg im ersten Versuch | nicht schlechter als B (8 ja) | 8 | 10 | 9 ja, 2 teils (03, 12) | ja |
+| K2, K11, nichts vor dem Ja geändert | 0 | 0 | 0 | 0, 0, 12 von 12 | ja |
+| Aufgabe 12, Recall | 8 von 11 | 6 | 9 | 9 | ja |
+| K8, Auftrag gegen Ausführung (M, L) | rund 15 % | | 45, 51, 18, 51 % | 04 43 %, 05 63 %, 06 21 %, 07 56 %, 11 73 %, 12 62 % (03: 26 % mit Vorspiel) | **nein** |
+
+**G1 wie geschrieben: verfehlt. G1 ohne Kriterium 5 (K8): ebenfalls verfehlt**, am Recall. Die großzügigste Lesart der Zweifelsfälle (Gold-Fakten, die nur in der Rückfrage oder nur sinngemäß stehen) gibt höchstens 86 von 99.
+
+Erwartung gegen Ergebnis: Erfolg 10 ja erwartet, 9 ja erreicht; Recall 89 bis 92 erwartet, **82 erreicht (verfehlt die Erwartung)**; Raster um 167 erwartet, 170; K8 weiter verfehlt wie erwartet. Die Annahme E-04 (das Skript liefert Fakten, die der Agent allein nicht findet) trägt nicht: der Recall sank gegenüber v1 um 6, die Aufträge waren kürzer und trugen weniger Regel- und Nicht-Ziel-Fakten (02 ohne die Rechtstexte, 03 mit einem zusätzlichen Test statt dem Gate, 11 ohne Stack und Stil, 08 ohne Ist-Zustand zu Planstufen). Dass die Suche Verwendungszahlen und zugehörige Tests liefert, hat in 12 Aufträgen kaum Spuren hinterlassen.
+
+**Kontrollen (Diagnose, nicht G1):**
+- `pack` und `search` liefen in 12 von 12 Läufen und lieferten die Fakten (Rückfall nie nötig). `check` wurde in **12 von 12** Läufen vom Rig verweigert, weil der Agent die Prüfung als `cat > Datei <<EOF … ; node … check < Datei` oder `cat <<EOF | node … check` aufrief; nur in 03 und 04 gelang ein zweiter Aufruf. Der Agent ging dann die Prüfliste von Hand durch, wie der Skill es für den Fall ohne Skript vorsieht. Ein Aufruf mit dem Here-Document direkt hinter `node …/context.mjs check` ist durch `allowed-tools: Bash(node *context.mjs*)` gedeckt (Probelauf 2026-10-28). Das ist ein Fehler im **Text** des Skills ("Pipe the draft into …"), nicht im Skript, und er ist nicht behoben, weil der Skill bis zur Auswertung unverändert bleibt.
+- Das Skript wurde ansonsten wie vorgesehen genutzt; bei 07 las der Agent keine Referenzdateien laut Zähler (Aufrufe mit `cd … && cat` zählt er nicht, siehe v1).
+- Messfehler: der Zähler `referenzen_gelesen` bleibt der von v1.
+
 ## Ergebnisse
 
 **Basislinie A, 2026-10-26** (`results/2026-10-26-basislinie.csv`, zwölf Läufe, Modell `claude-opus-5-5[1m]`, Claude Code 2.1.296; B steht weiter unten, C folgt):
