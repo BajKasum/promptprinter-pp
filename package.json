@@ -1,0 +1,12 @@
+{
+  "name": "promptprinter-pp",
+  "private": true,
+  "license": "MIT",
+  "description": "Agent Skill /pp: Prüfwerkzeuge und Tests. Der Skill selbst liegt in skill/pp und braucht nichts davon.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check skill/pp/scripts/context.mjs && node --check install.mjs",
+    "mutation": "node test/mutation.mjs"
+  }
+}
