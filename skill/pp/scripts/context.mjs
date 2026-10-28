@@ -146,6 +146,16 @@ function parseArgs(argv) {
 
 const toPosix = (p) => String(p).replaceAll("\\", "/");
 
+// Git meldet die Wurzel mit aufgelösten Links (macOS: /private/var statt /var, Windows: lange statt kurzer Namen).
+// Der Arbeitsordner wird genauso aufgelöst, sonst lässt sich der Weg von der Wurzel zu ihm nicht berechnen.
+function real(path) {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
 const gitArgs = (args) => ["-c", "core.quotepath=off", "-c", "core.fsmonitor=false", ...args];
 const gitOptions = (cwd, timeoutMs) => ({
   cwd,
@@ -205,8 +215,8 @@ const MANIFESTS = [
 
 function findRoot(cwd) {
   const top = git(cwd, ["rev-parse", "--show-toplevel"])?.trim();
-  if (top) return { root: resolve(top), isGit: true, none: false };
-  let dir = resolve(cwd);
+  if (top) return { root: real(top), isGit: true, none: false };
+  let dir = real(cwd);
   for (;;) {
     if (MANIFESTS.some((name) => existsSync(join(dir, name)))) return { root: dir, isGit: false, none: false };
     const parent = dirname(dir);
@@ -214,7 +224,7 @@ function findRoot(cwd) {
     dir = parent;
   }
   hint("no project detected: facts are limited to the working folder");
-  return { root: resolve(cwd), isGit: false, none: true };
+  return { root: real(cwd), isGit: false, none: true };
 }
 
 const WALK_SKIP = new Set([
@@ -586,6 +596,7 @@ export function buildPack(cwd, host = "claude") {
   const started = Date.now();
   const overBudget = () => Date.now() - started > PACK_BUDGET_MS;
   const { root, isGit, none } = findRoot(cwd);
+  const here = real(cwd);
   const config = loadConfig(root);
   const pack = {
     schema: SCHEMA,
@@ -644,7 +655,7 @@ export function buildPack(cwd, host = "claude") {
   const seen = new Set();
   const stack = [];
   const scripts = [];
-  for (const dir of manifestDirs(root, cwd)) {
+  for (const dir of manifestDirs(root, here)) {
     for (const name of MANIFESTS) {
       const full = join(dir, name);
       if (!existsSync(full) || seen.has(full)) continue;
@@ -666,7 +677,7 @@ export function buildPack(cwd, host = "claude") {
   pack.stack = uniqueStack.sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
   pack.scripts = [...new Set(scripts)];
 
-  pack.rules = ruleFiles(root, cwd, host);
+  pack.rules = ruleFiles(root, here, host);
   const built = buildStructure(files);
   pack.structure = built.structure;
   pack.rootFiles = built.rootFiles;
