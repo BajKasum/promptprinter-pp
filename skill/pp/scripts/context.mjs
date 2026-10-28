@@ -830,6 +830,22 @@ async function pool(tasks, n = 6) {
   return results;
 }
 
+// Tests, die zu einer Quelldatei gehören: gleicher Stamm im Namen (foo.ts, foo.test.ts, test_foo.py, foo_test.go).
+// Allgemeine Stämme (index, route, page ...) zählen nur im selben Ordnerbaum, sonst hängt jeder Test an jeder Datei.
+const GENERIC_STEMS = new Set(["index", "route", "page", "layout", "main", "mod", "utils", "util", "types", "config", "lib"]);
+const testStem = (path) =>
+  basename(path).replace(/\.(test|spec)(?=\.)/, "").replace(/\.[^.]+$/, "").replace(/^test_/, "").replace(/_test$/, "").toLowerCase();
+
+export function relatedTests(path, files) {
+  const stem = testStem(path);
+  const dir = dirname(path);
+  return files
+    .filter((f) => f !== path && isTestFile(f) && testStem(f) === stem)
+    .filter((f) => !GENERIC_STEMS.has(stem) || dirname(f).startsWith(dir) || dir.startsWith(dirname(f)))
+    .sort((a, b) => (dirname(a) === dir ? -1 : 0) - (dirname(b) === dir ? -1 : 0) || a.localeCompare(b))
+    .slice(0, 3);
+}
+
 function mergeCounts(perFile, term, out, config) {
   for (const [path, count] of parseGrepCount(out)) {
     if (isDeniedPath(path, config) || NOISE_FILE.test(path)) continue;
@@ -925,6 +941,7 @@ export async function searchRepo(cwd, rawTerms, size = "M", task = null) {
   });
   scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
   const top = scored.slice(0, limit);
+  for (const r of top) r.relatedTests = r.test ? [] : relatedTests(r.path, files);
 
   if (top.length && isGit) {
     const args = ["grep", "--untracked", "-n", "-I", "-i", "-F", "-m", "3"];
@@ -961,6 +978,7 @@ async function cmdSearch(options) {
   result.results.forEach((r, i) => {
     out.push(`${i + 1}. ${r.path} (score ${r.score}; ${r.terms.length ? r.terms.join(", ") : "path match"}; ${r.hits} hits${r.changed ? "; changed recently" : ""}${r.test ? "; test file" : ""})`);
     for (const line of r.lines) out.push(`   ${line.n}: ${line.text}`);
+    if (r.relatedTests?.length) out.push(`   tests: ${r.relatedTests.join(", ")}`);
   });
   if (result.shared.length) {
     out.push("\nShared identifiers (say in the order whether all places or only one are meant):");

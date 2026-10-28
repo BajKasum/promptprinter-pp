@@ -7,7 +7,7 @@ allowed-tools: Bash(node *context.mjs*) Read(~/.claude/skills/pp/**)
 license: MIT
 compatibility: Needs git and Node.js 22+ for scripts/context.mjs; works in a reduced mode without them.
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   author: "PromptPrinter"
 ---
 
@@ -77,14 +77,23 @@ rank lower than anything said after it.
 | XL   | up to 25      | about 35k |
 
 3a. Run `node "<skill-dir>/scripts/context.mjs" pack --host <claude|codex|vscode>`.
-    If node or the script is missing, or the pack says "hint:", collect the
-    same facts yourself: branch and status, `git diff HEAD --stat`, the last
-    10 commits, top-level layout, manifests, rule files, test command.
+    The pack gives branch, working tree, last commits, stack, scripts, rule
+    files (with whether this host loads them), structure, routes, migrations,
+    test command and CI. It never contains secret values; files on the deny
+    list appear by name only. If node or the script is missing, or the pack
+    says "hint:", collect the same facts yourself: branch and status,
+    `git diff HEAD --stat`, the last 10 commits, top-level layout, manifests,
+    rule files, test command.
 3b. Derive 3 to 8 search terms from the intent and the session extract, in
     the user's language, in English, and as code identifiers. Run
-    `node "<skill-dir>/scripts/context.mjs" search --terms "a,b,c" --size <S|M|L|XL>`.
-    Without the script, use your own search tool. Pass terms only as this
-    argument, never inside other shell syntax.
+    `node "<skill-dir>/scripts/context.mjs" search --terms "a,b,c" --size <S|M|L|XL>`
+    (add `--task bugfix` or `--task refactor` for those types, so test files are
+    not ranked down). Without the script, use your own search tool. Pass terms
+    only as this argument, never inside other shell syntax. The search lists
+    ranked candidates with hit lines, the related test files under "tests:",
+    and, for terms that look like identifiers, "used in n files": use those
+    counts for the shared-identifier decision in 3c, and name the listed test
+    files in the order's tests and acceptance.
 3c. Read the best candidates within the budget. Prefer the relevant excerpt
     over the whole file. If a hit is a shared identifier (a text key, a
     component, a function used in several places), count its usages: the
@@ -148,8 +157,11 @@ current branch conflicts with them.
 ## Step 8: Check
 
 Pipe the draft into `node "<skill-dir>/scripts/context.mjs" check --size <S|M|L|XL>`
-or, without the script, go through references/checklist.md yourself. Fix
-every finding once. Do not loop more than once.
+or, without the script, go through references/checklist.md yourself. The
+check reports secret patterns (errors), paths that do not exist ("not found":
+fine if the order marks the file as new), length outside the corridor,
+placeholders without an assumptions section and red flags. Fix every finding
+once. Do not loop more than once.
 
 ## Step 9: Output, in exactly this order, in the language of the intent
 
