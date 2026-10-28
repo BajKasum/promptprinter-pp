@@ -477,11 +477,11 @@ describe("save", () => {
 
   test("Slug wird gekürzt und bereinigt, Pfad kann nicht ausbrechen", () => {
     const dir = nodeProject();
-    const { out } = run(["save", "--cwd", dir, "--slug", "../../../etc/passwd" + "x".repeat(80)], { input: order });
+    const { out } = run(["save", "--cwd", dir, "--slug", "../../../pwnedmarker/passwd" + "x".repeat(80)], { input: order });
     const name = out.match(/saved: \.promptprinter\/prompts\/(.+)/)[1];
     assert.ok(!name.includes("/") && !name.includes(".."));
     assert.ok(name.length <= 16 + 40 + 3, name);
-    assert.ok(!existsSync(join(dir, "..", "..", "etc")));
+    for (const up of [join(dir, "..", "pwnedmarker"), join(dir, "..", "..", "pwnedmarker"), join(dir, "pwnedmarker")]) assert.ok(!existsSync(up), up);
   });
 
   test("ohne Projektwurzel oder ohne Eingabe wird nichts geschrieben", () => {
