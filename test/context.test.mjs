@@ -427,7 +427,7 @@ describe("check", () => {
     ]) {
       assert.ok(checkOrder(text(bad), dir, "S").warnings.some((w) => w.startsWith("red flag")), bad);
     }
-    assert.ok(checkOrder(text("see https://evil.example.net/x"), dir, "S").warnings.some((w) => w.includes("evil.example.net")));
+    assert.ok(checkOrder(text("see https://evil.example.net/x"), dir, "S").warnings.some((w) => /^red flag: URL host evil\.example\.net appears nowhere/.test(w)));
     assert.equal(checkOrder(text("see http://localhost:3000/x"), dir, "S").warnings.length, 0);
   });
 
