@@ -6,3 +6,4 @@ dist/
 # Eval-Kopien und lokale Läufe liegen nie im Repo
 eval-kopie*/
 .promptprinter/
+mutation-backup.tmp
