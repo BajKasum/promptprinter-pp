@@ -18,6 +18,7 @@ import {
   findSecrets,
   isDeniedPath,
   redactText,
+  relatedTests,
   searchRepo,
 } from "../skill/pp/scripts/context.mjs";
 
@@ -302,6 +303,20 @@ describe("search", () => {
     const result = await searchRepo(dir, "useShared_thing", "S");
     assert.deepEqual(result.shared, [{ term: "useShared_thing", files: 2 }]);
     assert.match(run(["search", "--cwd", dir, "--terms", "useShared_thing"]).out, /useShared_thing: used in 2 files/);
+  });
+
+  test("zugehörige Tests: gleicher Stamm, allgemeine Stämme nur im selben Baum", async () => {
+    const files = ["src/lib/util.ts", "src/lib/util.test.ts", "tests/util.spec.ts", "src/a/route.ts", "src/a/route.test.ts", "src/b/route.test.ts", "pkg/foo.py", "tests/test_foo.py", "x/bar.go", "x/bar_test.go"];
+    assert.deepEqual(relatedTests("src/lib/util.ts", files), ["src/lib/util.test.ts"]); // "util" ist ein allgemeiner Stamm: tests/ liegt in einem anderen Baum
+    assert.deepEqual(relatedTests("src/a/route.ts", files), ["src/a/route.test.ts"]);
+    assert.deepEqual(relatedTests("pkg/foo.py", files), ["tests/test_foo.py"]);
+    assert.deepEqual(relatedTests("x/bar.go", files), ["x/bar_test.go"]);
+    assert.deepEqual(relatedTests("src/a/none.ts", files), []);
+    const dir = nodeProject();
+    const result = await searchRepo(dir, "FooBar", "M");
+    assert.deepEqual(result.results.find((r) => r.path === "src/lib/util.ts").relatedTests, ["src/lib/util.test.ts"]);
+    assert.deepEqual(result.results.find((r) => r.path === "src/lib/util.test.ts").relatedTests, []);
+    assert.match(run(["search", "--cwd", dir, "--terms", "FooBar"]).out, /tests: src\/lib\/util\.test\.ts/);
   });
 
   test("Deckel nach Größe", async () => {
