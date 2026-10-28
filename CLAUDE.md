@@ -6,9 +6,9 @@ Wird bei jedem Session-Start geladen. Kurz: was das Projekt ist, in welchem Zust
 
 Der Agent Skill `/pp` (Claude Code, später Codex und VS Code Copilot) plus ein kleines lokales Skript. Er macht aus einer Absicht einen fertigen Prompt für den Coding-Agenten, mit Kontext aus Git, Struktur, Regeldateien und passenden Dateien. Er ändert nie Dateien, führt erst nach ausdrücklichem Ja etwas aus, hat keinen Server und kein Konto. Eigene Produktlinie neben der Web-App PromptPrinter (Entscheid D1 vom 25.10.2026).
 
-## IST-Zustand (Stand 2026-10-25)
+## IST-Zustand (Stand 2026-10-28)
 
-Gegenwart, keine Historie. **Nur Planung, nichts gebaut.** Das Repo hat README, MIT-Lizenz, `SECURITY.md` (Meldeweg: GitHub Private Vulnerability Reporting, ersatzweise Mail), diese Datei und eine CI, die nur die Pflichtdateien prüft. Skill, Skript und Eval-Set kommen phasenweise (P1 bis P8); die Planung und der Tagesplan liegen im privaten Second Brain des Autors (Notiz "PromptPrinter 2.0 Tagesplan").
+Gegenwart, keine Historie. **Beendet in dieser Form (Entscheid 2026-10-27).** Das Repo hat README, MIT-Lizenz, `SECURITY.md`, diese Datei, den Skill `skill/pp/` (Version 0.2.0 mit vier Referenzdateien), die Messung `eval/` (zwölf Aufgaben, Werkzeuge ohne Abhängigkeiten, Ergebnistabellen) und eine CI, die die Pflichtdateien prüft. Das Skript `context.mjs` und die Installationsskripte gibt es nicht und sie sind nicht mehr geplant. Der Skill hat sein Gate (G1) zweimal verfehlt: Recall 88 von 99 Fakten bei verlangten 90, und der Auftrag kostete mehr als das Limit von rund 15 % der Ausführung. Das Repo wird nicht weiter gepflegt und bleibt als Aufzeichnung und Ausgangspunkt stehen.
 
 Bestätigte Entscheide (25.10.2026): eigene Produktlinie, eigenes öffentliches Repo, Lizenz MIT, Befehl `/pp` (Codex: `$pp`), Start nach dem 23.10., Skill-Datei auf Englisch, Aufträge in der Sprache der Absicht.
 
