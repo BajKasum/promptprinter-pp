@@ -1,4 +1,8 @@
-# promptprinter-pp
+<div align="center">
+
+<img src="assets/promptprinter-pp-logo.png" alt="PromptPrinter /pp (promptprinter-pp)" width="620" />
+
+</div>
 
 `/pp` turns what you want into one ready-to-use prompt for your coding agent. It reads the context you are already working in (conversation, git state, project structure, rule files, the files that matter for the task), and the agent's own model writes the prompt. It never edits a file and never runs anything without your explicit yes.
 
