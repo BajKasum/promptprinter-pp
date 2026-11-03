@@ -18,9 +18,13 @@
 
 ## Deny list (never read, only name as "skipped")
 
-.env, .env.* (except .env.example), *.pem, *.key, *.p12, *.pfx, id_rsa*,
-id_ed25519*, .npmrc, .pypirc, .netrc, credentials*, secrets.*, *.tfstate,
-.aws/, .ssh/, .git/, and entries in .promptprinter/config.json.
+.env, .env.* (except .env.example), .dev.vars, .envrc, *.pem, *.key, *.p12, *.pfx,
+id_rsa*, id_ed25519*, .npmrc, .pypirc, .netrc, .git-credentials, credentials*,
+secrets.*, secrets/*.{yml,yaml,json,env,txt}, *.tfstate, *.tfvars, kubeconfig,
+wp-config.php, *service-account*.json, *service_account*.json, *-adminsdk*.json,
+*-credentials*.json, *_credentials*.json, appsettings.Production*.json,
+.docker/config.json, .aws/, .ssh/, .kube/, .secrets/, .git/, and entries in
+.promptprinter/config.json.
 
 ## Red flags in the order (remove or quote as data)
 

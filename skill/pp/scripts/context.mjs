@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Kontext-Skript des Skills /pp: sammelt Fakten aus Git und Dateien, prüft einen Auftrag, legt ihn ab.
-//   node context.mjs <pack|search|check|save|doctor> [Optionen]      (Spezifikation: README, "Das Skript")
+//   node context.mjs <pack|search|check|save|doctor> [Optionen]
 //
 // Regeln, die der Test festhält:
 //   - keine Abhängigkeiten, kein Netzwerk (kein Import von net, http, https, dns, kein fetch)
@@ -28,7 +28,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const SCHEMA = "pp-context/1";
 const MAX_STDIN = 200 * 1024;
 const PACK_BUDGET_MS = 2500;
@@ -60,17 +60,36 @@ const SECRET_PATTERNS = [
   ["slack token", /\bxox[baprs]-[A-Za-z0-9-]{10,}/g],
   ["live key", /\b(?:sk|rk)_live_[A-Za-z0-9]{16,}/g],
   ["jwt", /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g],
+  ["supabase key", /\bsb_secret_[A-Za-z0-9_-]{16,}/g],
+  ["supabase token", /\bsbp_[A-Za-z0-9]{20,}/g],
+  ["npm token", /\bnpm_[A-Za-z0-9]{30,}/g],
+  ["gitlab token", /\bglpat-[A-Za-z0-9_-]{20,}/g],
+  ["webhook secret", /\bwhsec_[A-Za-z0-9+/=_-]{20,}/g],
+  ["hugging face token", /\bhf_[A-Za-z0-9]{30,}/g],
+  // Die Ziffer trennt ein Token von einem langen Bezeichner im Fliesstext ("Bearer createClientForRequest").
+  ["bearer token", /\bBearer\s+(?=[^\s]*\d)[A-Za-z0-9._~+/-]{20,}=*/gi],
+  // Platzhalter wie user:password@ und ${PASS} sind kein Geheimnis.
+  ["url credentials", /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@"']+:(?![$<{[%]|(?:pass|password|changeme|secret|x+)@)[^\s/@"']+@/gi],
 ];
-const ASSIGNMENT = /((?:secret|token|password|passwd|api[_-]?key)\s*[:=]\s*["']?)([^\s"']{12,})/gi;
-// Werte, die auf eine Quelle zeigen und kein Geheimnis sind.
-const NOT_A_VALUE = /^(?:\$|<|\[|\{|%|process\.env|os\.environ|env\.|import\.meta)/i;
+// Der Schlüsselname muss auf das Stichwort enden: AWS_SECRET_ACCESS_KEY zählt, TOKEN_URL und max_tokens nicht.
+const ASSIGNMENT = /((?:secret(?:[_-]?(?:access[_-]?)?key)?(?:[_-]?base)?|token|password|passwd|pwd|credentials?|api[_-]?key|private[_-]?key|access[_-]?key|encryption[_-]?key|service[_-]?role[_-]?key|signing[_-]?key|auth[_-]?key)["']?\s*[:=]\s*["']?)([^\s"']{12,})/gi;
+// Werte, die auf eine Quelle zeigen oder Code sind, und kein Geheimnis. Ein Passwort kann mit $ beginnen,
+// deshalb zählen nur ${...} und $NAME_IN_GROSS als Verweis.
+const NOT_A_VALUE = /^(?:\$\{|\$[A-Z_][A-Z0-9_]*[;,)]*$|<|\[|\{|%|process\.env|os\.environ|(?:env|ENV)\.|import\.meta)|\(/;
+
+// Der Körper eines privaten Schlüssels und ähnliche Blöcke: lang, gemischt aus Gross, Klein und Ziffern. Git-Hashes
+// haben keine Grossbuchstaben, Pfade haben viele Schrägstriche; beide bleiben stehen.
+const LONG_ENCODED = /[A-Za-z0-9+/]{40,}={0,2}/g;
+const looksEncoded = (value) =>
+  /[A-Z]/.test(value) && /[a-z]/.test(value) && /\d/.test(value) && (value.match(/\//g)?.length ?? 0) * 16 <= value.length;
 
 export function redactText(text) {
   let out = String(text);
   for (const [kind, pattern] of SECRET_PATTERNS) out = out.replace(pattern, `[redacted: ${kind}]`);
-  return out.replace(ASSIGNMENT, (whole, head, value) =>
+  out = out.replace(ASSIGNMENT, (whole, head, value) =>
     NOT_A_VALUE.test(value) ? whole : `${head}[redacted: assignment]`,
   );
+  return out.replace(LONG_ENCODED, (value) => (looksEncoded(value) ? "[redacted: long encoded value]" : value));
 }
 
 // Nur Art und Zeile, nie der Wert.
@@ -87,8 +106,9 @@ export function findSecrets(text) {
       if (hit) return found.push({ kind: hit[0], line: index + 1 });
       ASSIGNMENT.lastIndex = 0;
       if ([...line.matchAll(ASSIGNMENT)].some((match) => !NOT_A_VALUE.test(match[2]))) {
-        found.push({ kind: "assignment", line: index + 1 });
+        return found.push({ kind: "assignment", line: index + 1 });
       }
+      if ((line.match(LONG_ENCODED) ?? []).some(looksEncoded)) found.push({ kind: "long encoded value", line: index + 1 });
     });
   return found;
 }
@@ -97,12 +117,16 @@ export function isDeniedPath(path, config) {
   const clean = String(path).replaceAll("\\", "/").replace(/^\.\//, "");
   const segments = clean.split("/");
   const base = segments.at(-1).toLowerCase();
-  if (segments.some((s) => s === ".git" || s === ".aws" || s === ".ssh")) return true;
+  if (segments.some((s) => s === ".git" || s === ".aws" || s === ".ssh" || s === ".kube" || s === ".secrets")) return true;
   if (base === ".env" || (base.startsWith(".env.") && base !== ".env.example")) return true;
-  if (/\.(pem|key|p12|pfx|tfstate)$/.test(base)) return true;
+  if (base === ".dev.vars" || base === ".envrc" || base === ".git-credentials" || base === "kubeconfig" || base === "wp-config.php") return true;
+  if (/\.(pem|key|p12|pfx|tfstate|tfvars)$/.test(base)) return true;
   if (base.startsWith("id_rsa") || base.startsWith("id_ed25519")) return true;
   if (base === ".npmrc" || base === ".pypirc" || base === ".netrc") return true;
   if (base.startsWith("credentials") || base.startsWith("secrets.")) return true;
+  if (/(^|[-_.])service[-_]?account[^/]*\.json$|-adminsdk[^/]*\.json$|[-_]credentials[^/]*\.json$|^appsettings\.production[^/]*\.json$/.test(base)) return true;
+  if (segments.at(-2) === "secrets" && /\.(ya?ml|json|env|txt)$/.test(base)) return true;
+  if (segments.at(-2) === ".docker" && base === "config.json") return true;
   return (config?.denyPaths ?? []).some((prefix) => clean.startsWith(prefix));
 }
 
@@ -110,7 +134,11 @@ export function isDeniedPath(path, config) {
 const DENY_PATHSPECS = [
   "**/.env", "**/.env.*", "**/*.pem", "**/*.key", "**/*.p12", "**/*.pfx", "**/id_rsa*",
   "**/id_ed25519*", "**/.npmrc", "**/.pypirc", "**/.netrc", "**/credentials*", "**/secrets.*",
-  "**/*.tfstate", ".aws/**", ".ssh/**", ".promptprinter/**",
+  "**/*.tfstate", "**/*.tfvars", "**/.dev.vars", "**/.envrc", "**/.git-credentials", "**/kubeconfig",
+  "**/wp-config.php", "**/*service-account*.json", "**/*service_account*.json", "**/*-adminsdk*.json",
+  "**/*-credentials*.json", "**/*_credentials*.json", "**/appsettings.[Pp]roduction*.json",
+  "**/secrets/*.yml", "**/secrets/*.yaml", "**/secrets/*.json", "**/secrets/*.env", "**/secrets/*.txt",
+  "**/.docker/config.json", "**/.kube/**", "**/.secrets/**", ".aws/**", ".ssh/**", ".promptprinter/**",
 ];
 const NOISE_PATHSPECS = [
   "**/package-lock.json", "**/pnpm-lock.yaml", "**/yarn.lock", "**/Cargo.lock", "**/poetry.lock",
@@ -541,6 +569,22 @@ function ruleFiles(root, cwd, host) {
 const TEST_FILE = /\.(test|spec)\.[^.]+$|(^|\/)test_[^/]*\.py$|_test\.(go|py)$/;
 const isTestFile = (path) => TEST_FILE.test(path);
 
+const TEST_COMMANDS = { npm: "npm run test", pnpm: "pnpm test", yarn: "yarn test", bun: "bun run test" };
+const LOCKFILES = [["pnpm-lock.yaml", "pnpm"], ["yarn.lock", "yarn"], ["bun.lock", "bun"], ["bun.lockb", "bun"], ["package-lock.json", "npm"]];
+
+// Der Eintrag `packageManager` in package.json geht vor dem Lockfile; ohne beides bleibt npm.
+function packageManager(root) {
+  const text = readText(join(root, "package.json"));
+  if (text == null) return null;
+  try {
+    const declared = String(JSON.parse(text).packageManager ?? "").split("@")[0];
+    if (TEST_COMMANDS[declared]) return declared;
+  } catch {
+    /* kaputtes package.json meldet schon manifestDeps */
+  }
+  return LOCKFILES.find(([file]) => existsSync(join(root, file)))?.[1] ?? "npm";
+}
+
 function buildStructure(files) {
   const top = new Map();
   const rootFiles = [];
@@ -687,12 +731,14 @@ export function buildPack(cwd, host = "claude") {
   const testFiles = files.filter(isTestFile);
   const frameworks = TEST_FRAMEWORKS.filter((f) => names.has(f));
   const hasScript = (s) => pack.scripts.includes(s);
+  const manager = packageManager(root);
   let command = null;
-  if (hasScript("test")) command = "npm run test";
+  if (hasScript("test")) command = TEST_COMMANDS[manager ?? "npm"];
   else if (names.has("pytest")) command = "pytest";
   else if (files.includes("go.mod")) command = "go test ./...";
   else if (files.includes("Cargo.toml")) command = "cargo test";
   pack.tests = { files: testFiles.length, frameworks: frameworks, command };
+  pack.packageManager = manager;
 
   pack.ci = files.filter((f) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(f)).map((f) => basename(f));
 
@@ -730,7 +776,8 @@ function renderPack(pack, level = 0) {
   }
   if (pack.scripts.length) {
     const more = pack.scripts.length - 7;
-    out.push(`\n## Scripts\n${pack.scripts.slice(0, 7).join(", ")}${more > 0 ? ` (+${more})` : ""}`);
+    const runner = pack.packageManager ? ` (run with ${pack.packageManager})` : "";
+    out.push(`\n## Scripts${runner}\n${pack.scripts.slice(0, 7).join(", ")}${more > 0 ? ` (+${more})` : ""}`);
   }
   if (pack.rules.length) {
     out.push("\n## Rule files");
