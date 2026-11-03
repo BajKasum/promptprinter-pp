@@ -110,16 +110,110 @@ describe("Schwärzen", () => {
     assert.equal(redactText(text), text);
   });
 
+  test("Zuweisungen mit längerem Schlüsselnamen, Anbieter-Token und URLs mit Passwort", () => {
+    const values = {
+      "AWS_SECRET_ACCESS_KEY=": "wJalrXUtnFEMIK7MDENGbPxRfiCYFAKEKEY",
+      "SUPABASE_SERVICE_ROLE_KEY=": "a-fake-service-role-value",
+      "PRIVATE_KEY=": "a-fake-private-key-value",
+      "API_KEY_ENCRYPTION_KEY=": "a-fake-encryption-value",
+      "SECRET_KEY_BASE=": "a-fake-secret-key-base",
+      '"apiKey": "': "a-fake-json-api-key-value",
+      'password = "': "$ecretPassw0rd123",
+      "": "sb_secret_abcdefghijklmnopqrstuvwxyz",
+    };
+    // Zusammengesetzt, damit die Push Protection von GitHub die erfundenen Werte nicht als echte Token sperrt.
+    const tokens = [
+      "sbp_" + "0123456789abcdef".repeat(2) + "01234567",
+      "npm_" + "abcdefghijklmnopqrstuvwxyz0123456789",
+      "glpat-" + "abcdefghijklmnopqrst",
+      "whsec_" + "abcdefghijklmnopqrstuvwxyz012345",
+      "hf_" + "abcdefghijklmnopqrstuvwxyzABCDEFGH",
+      "Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789",
+    ];
+    for (const [head, value] of Object.entries(values)) {
+      const line = `${head}${value}`;
+      assert.ok(!redactText(line).includes(value), `Wert noch da: ${line}`);
+      assert.equal(findSecrets(line).length, 1, line);
+    }
+    for (const line of tokens) {
+      assert.ok(!redactText(line).includes(line.split(" ").at(-1)), `Wert noch da: ${line}`);
+      assert.equal(findSecrets(line).length, 1, line);
+    }
+    const url = "DATABASE_URL=postgres://admin:hunter2hunter2@db.example.com:5432/app";
+    assert.ok(!redactText(url).includes("hunter2hunter2"));
+    assert.match(redactText(url), /db\.example\.com/);
+    assert.equal(findSecrets(url).length, 1);
+  });
+
+  test("der Körper eines privaten Schlüssels wird geschwärzt, Hash und Pfad bleiben", () => {
+    const body = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7FAKEFAKEFAKE";
+    assert.ok(!redactText(body).includes(body));
+    assert.equal(findSecrets(body)[0].kind, "long encoded value");
+    const fine = [
+      "4451250e7b3d5deadf922504ef4a5861ee68aeb4",
+      "src/features/Chat2/components/MessageList/MessageListItem",
+    ].join("\n");
+    assert.equal(redactText(fine), fine);
+    assert.deepEqual(findSecrets(fine), []);
+  });
+
+  test("Platzhalter, Code und Wörter mit Stichwort bleiben stehen", () => {
+    const text = [
+      "postgres://user:password@localhost:5432/app",
+      "postgres://user:${DB_PASSWORD}@localhost:5432/app",
+      "http://localhost:3000/pfad@version",
+      "max_tokens: DEFAULT_MAX_TOKENS_VALUE",
+      "TOKEN_URL=https://example.com/oauth/token",
+      "apiKey: resolveApiKeyFromConfig(request)",
+      "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY",
+      "Der Bearer createClientForRequest gilt nur im Chat.",
+    ].join("\n");
+    assert.deepEqual(findSecrets(text), []);
+    assert.equal(redactText(text), text);
+  });
+
+  test("lange Zeilen bleiben schnell", () => {
+    const started = Date.now();
+    redactText("a".repeat(200 * 1024));
+    findSecrets("a_".repeat(100 * 1024));
+    assert.ok(Date.now() - started < 2000, `${Date.now() - started} ms`);
+  });
+
+  test("search, check und save lassen die Werte nicht durch", () => {
+    const secrets = {
+      "AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMIK7MDENGbPxRfiCYFAKEKEY",
+      "DATABASE_URL": "postgres://admin:hunter2hunter2@db.example.com:5432/app",
+      "SERVICE_ROLE": "sb_secret_abcdefghijklmnopqrstuvwxyz",
+    };
+    const content = Object.entries(secrets).map(([k, v]) => `${k}=${v}`).join("\n");
+    const dir = fixture({ "settings.py": `${content}\n` });
+    const search = run(["search", "--cwd", dir, "--terms", Object.keys(secrets).join(","), "--size", "S"]);
+    assert.match(search.out, /settings\.py/);
+    for (const value of ["wJalrXUtnFEMIK7MDENGbPxRfiCYFAKEKEY", "hunter2hunter2", "sb_secret_abcdefghijklmnopqrstuvwxyz"]) {
+      assert.ok(!search.out.includes(value), value);
+    }
+    const check = run(["check", "--cwd", dir, "--size", "S"], { input: content });
+    assert.match(check.out, /check: 3 errors/);
+    const save = run(["save", "--cwd", dir, "--slug", "probe"], { input: content });
+    assert.match(save.out, /not saved/);
+    assert.ok(!existsSync(join(dir, ".promptprinter", "prompts")));
+  });
+
   test("findSecrets nennt nur Art und Zeile", () => {
     const found = findSecrets(`ok\nkey ${FAKE.aws}`);
     assert.deepEqual(found, [{ kind: "aws key", line: 2 }]);
   });
 
   test("Sperrliste nach Pfad", () => {
-    for (const denied of [".env", "app/.env.local", "x/id_rsa", "id_ed25519.pub", ".npmrc", "credentials.json", "secrets.yml", "a/b.pem", "k.key", "s.tfstate", ".aws/config", ".ssh/known_hosts", ".git/config"]) {
+    for (const denied of [
+      ".env", "app/.env.local", "x/id_rsa", "id_ed25519.pub", ".npmrc", "credentials.json", "secrets.yml", "a/b.pem", "k.key", "s.tfstate", ".aws/config", ".ssh/known_hosts", ".git/config",
+      ".dev.vars", ".envrc", ".git-credentials", "terraform.tfvars", "infra/prod.tfvars", "kubeconfig", ".kube/config", ".docker/config.json", ".secrets/a",
+      "service-account.json", "my_service_account_key.json", "app-firebase-adminsdk-x1.json", "google-credentials.json", "wp-config.php",
+      "appsettings.Production.json", "secrets/prod.yaml", "deploy/secrets/db.env",
+    ]) {
       assert.ok(isDeniedPath(denied), denied);
     }
-    for (const fine of [".env.example", "src/environment.ts", "README.md", "src/keys.ts", "credits.md"]) {
+    for (const fine of [".env.example", "src/environment.ts", "README.md", "src/keys.ts", "credits.md", "src/secrets/index.ts", "src/service-account.ts", "appsettings.json", "docker/config.json"]) {
       assert.ok(!isDeniedPath(fine), fine);
     }
     assert.ok(isDeniedPath("intern/plan.md", { denyPaths: ["intern/"] }));
@@ -144,6 +238,20 @@ describe("pack", () => {
     assert.deepEqual(pack.tests.frameworks, ["vitest"]);
     assert.equal(pack.tests.command, "npm run test");
     assert.deepEqual(pack.ci, ["ci.yml"]);
+  });
+
+  test("Testbefehl folgt dem Paketmanager: Eintrag vor Lockfile, sonst npm", () => {
+    const scripts = { scripts: { test: "vitest run" } };
+    const command = (files) => buildPack(fixture(files), "claude").tests.command;
+    assert.equal(command({ "package.json": JSON.stringify(scripts) }), "npm run test");
+    assert.equal(command({ "package.json": JSON.stringify(scripts), "pnpm-lock.yaml": "" }), "pnpm test");
+    assert.equal(command({ "package.json": JSON.stringify(scripts), "yarn.lock": "" }), "yarn test");
+    assert.equal(command({ "package.json": JSON.stringify(scripts), "bun.lock": "" }), "bun run test");
+    assert.equal(command({ "package.json": JSON.stringify(scripts), "package-lock.json": "{}" }), "npm run test");
+    assert.equal(command({ "package.json": JSON.stringify({ ...scripts, packageManager: "pnpm@12.6.0" }), "package-lock.json": "{}" }), "pnpm test");
+    assert.equal(command({ "package.json": JSON.stringify({ ...scripts, packageManager: "unbekannt@1" }), "yarn.lock": "" }), "yarn test");
+    const dir = fixture({ "package.json": JSON.stringify({ ...scripts, packageManager: "pnpm@12.6.0" }) });
+    assert.match(run(["pack", "--cwd", dir]).out, /## Scripts \(run with pnpm\)/);
   });
 
   test("neue, nicht committete Datei steht in Status und Struktur", () => {
@@ -459,7 +567,10 @@ describe("save", () => {
     run(["save", "--cwd", dir, "--slug", "Mein Auftrag!"], { input: order });
     const names = readdirSync(join(dir, ".promptprinter", "prompts")).sort();
     assert.equal(names.length, 3);
-    assert.ok(names.some((n) => n.endsWith("-2.md")) && names.some((n) => n.endsWith("-3.md")));
+    // Der Name trägt die Minute: über eine Minutengrenze hinweg gibt es keinen Zusatz, die drei Dateien bleiben.
+    if (new Set(names.map((n) => n.slice(0, 15))).size === 1) {
+      assert.ok(names.some((n) => n.endsWith("-2.md")) && names.some((n) => n.endsWith("-3.md")));
+    }
     assert.equal(readFileSync(join(dir, ".promptprinter", ".gitignore"), "utf8"), "*\n");
     const saved = readFileSync(join(dir, ".promptprinter", "prompts", names.find((n) => !/-\d\.md$/.test(n))), "utf8");
     assert.match(saved, /^---\ndate: .+\nhost: codex\nsize: M\nscript: \d+\.\d+\.\d+\n---\n\n/);
