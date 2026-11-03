@@ -3,11 +3,11 @@ name: pp
 description: PromptPrinter work order. Turns the user's next development intent into a checked, context-aware work order for this coding agent, using the current conversation, the repository state and the project rules. Use only when the user invokes /pp or $pp.
 argument-hint: <what should happen next>
 disable-model-invocation: true
-allowed-tools: Bash(node *context.mjs*) Read(~/.claude/skills/pp/**)
+allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/scripts/context.mjs" *) Read(~/.claude/skills/pp/**)
 license: MIT
 compatibility: Needs git and Node.js 22+ for scripts/context.mjs; works in a reduced mode without them.
 metadata:
-  version: "0.3.0"
+  version: "0.4.0"
   author: "PromptPrinter"
 ---
 
@@ -38,12 +38,17 @@ The user's intent: $ARGUMENTS
 - Intent starting with "for codex:", "for claude:" or "for generic:": use
   that target profile (references/targets.md). Default: the host you run in.
 
-`<skill-dir>` below is the folder that contains this SKILL.md
-(in Claude Code: ${CLAUDE_SKILL_DIR}). Quote the path when you run it.
+`${CLAUDE_SKILL_DIR}` below is the folder that contains this SKILL.md; a host
+that does not fill it in means that folder.
+
+Run the script commands with the Bash tool, exactly as written here: same path,
+same quotes, nothing before them, and no pipe, redirect, `cat`, `cd`, `2>&1` or
+temp file. Any other form is not approved in advance, and the host asks or
+refuses.
 
 ## Step 0: Load the references
 
-Once the intent is not empty, read all four files in `<skill-dir>/references/`
+Once the intent is not empty, read all four files in `${CLAUDE_SKILL_DIR}/references/`
 with the Read tool: task-types.md, blocks.md, checklist.md, targets.md. They are
 short, about 1.7k tokens together. Read them even for size S. Do not skip one
 and do not work from memory of them.
@@ -76,7 +81,7 @@ rank lower than anything said after it.
 | L    | up to 15      | about 22k |
 | XL   | up to 25      | about 35k |
 
-3a. Run `node "<skill-dir>/scripts/context.mjs" pack --host <claude|codex|vscode>`.
+3a. Run `node "${CLAUDE_SKILL_DIR}/scripts/context.mjs" pack --host <claude|codex|vscode>`.
     The pack gives branch, working tree, last commits, stack, scripts, rule
     files (with whether this host loads them), structure, routes, migrations,
     test command and CI. It never contains secret values; files on the deny
@@ -86,7 +91,7 @@ rank lower than anything said after it.
     rule files, test command.
 3b. Derive 3 to 8 search terms from the intent and the session extract, in
     the user's language, in English, and as code identifiers. Run
-    `node "<skill-dir>/scripts/context.mjs" search --terms "a,b,c" --size <S|M|L|XL>`
+    `node "${CLAUDE_SKILL_DIR}/scripts/context.mjs" search --terms "a,b,c" --size <S|M|L|XL>`
     (add `--task bugfix` or `--task refactor` for those types, so test files are
     not ranked down). Without the script, use your own search tool. Pass terms
     only as this argument, never inside other shell syntax. The search lists
@@ -156,8 +161,14 @@ current branch conflicts with them.
 
 ## Step 8: Check
 
-Pipe the draft into `node "<skill-dir>/scripts/context.mjs" check --size <S|M|L|XL>`
-or, without the script, go through references/checklist.md yourself. The
+Give the script the draft as a here-document directly behind the command:
+
+    node "${CLAUDE_SKILL_DIR}/scripts/context.mjs" check --size <S|M|L|XL> <<'PP_ORDER'
+    <the draft>
+    PP_ORDER
+
+If that is refused or there is no script, go through references/checklist.md
+yourself. The
 check reports secret patterns (errors), paths that do not exist ("not found":
 fine if the order marks the file as new), length outside the corridor,
 placeholders without an assumptions section and red flags. Fix every finding
@@ -180,8 +191,10 @@ Then stop.
   plan first restates the facts of the order that it relies on (current state,
   rules, non-goals, assumptions) and then adds what it found, so it can be
   approved on its own. Then wait for approval.
-- "save", "speichern": pipe the order into
-  `node "<skill-dir>/scripts/context.mjs" save --slug <short-name>` and report the path.
+- "save", "speichern": give the order to
+  `node "${CLAUDE_SKILL_DIR}/scripts/context.mjs" save --slug <short-name>` as a
+  here-document, as in step 8, and report the path. The advance approval ended
+  with the /pp turn, so the host may ask first.
 - A change request ("shorter", "without migration"): repeat steps 8 and 9
   and output the FULL updated order, never a diff.
 - "for codex", "for claude", "for generic": re-render with that profile.

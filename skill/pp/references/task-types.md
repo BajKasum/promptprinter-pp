@@ -3,7 +3,7 @@
 | type | signals | core of the order |
 |------|---------|-------------------|
 | change | rename, change a text, a value, a colour | what, where, one acceptance check |
-| bugfix | "doesn't work", error, stack trace or failing test in the session | symptom, reproduction, expected vs actual, prove the cause before fixing, regression test |
+| bugfix | "doesn't work", error, stack trace or failing test in the session | symptom, reproduction, expected vs actual, prove the cause before fixing; a test that already fails is the regression test and stays unchanged, add one only if no test shows the bug |
 | feature | build, implement, add | behaviour, data, interfaces, UI, edge cases, tests |
 | refactor | clean up, split, restructure, file too large | behaviour stays identical, tests green before, fence the scope, small steps |
 | architecture | how should we, plan how, design, concept for | no code changes; deliverable is a document: options, criteria, recommendation; no "plan first", the document is the plan |
