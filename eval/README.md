@@ -2,7 +2,7 @@
 
 Hier steht, womit gemessen wird, ob `/pp` bessere Aufträge liefert als der rohe Satz und als der Plan-Modus des Agenten. Zwölf Aufgaben, je unter drei Bedingungen. Die Gold-Fakten jeder Aufgabe werden **committet, bevor ein Lauf startet**, sonst bewertet man rückwirkend, was man gesehen hat.
 
-> **Stand 2026-10-26: Basislinie A und B gelaufen und bewertet** (`results/2026-10-26-basislinie.csv`, 24 Zeilen, davon eine ohne Ergebnis). Lauf C auf allen zwölf Aufgaben gelaufen (`results/2026-10-26-skill-v0.csv` für 01 bis 06, `results/2026-10-27-skill-v0-teil2.csv` für 07 bis 12, Zwischenstand unten); die Entscheidung nach G1 steht aus (Tag 10). Alle zwölf Aufgaben stehen hier, mit Gold-Fakten, die vor dem ersten Lauf committet sind (Nachweis: `git log` dieses Branches).
+> **Stand 2026-11-03: Basislinie A und B und drei Läufe von C sind gelaufen und bewertet** (Skill 0.1.0, 0.2.0, 0.3.0, Tabellen unter `results/`). G1 ist dreimal verfehlt. Der Skill 0.4.0 ist nicht gemessen. Alle zwölf Aufgaben stehen hier, mit Gold-Fakten, die vor dem ersten Lauf committet sind (Nachweis: `git log`).
 
 ## Sicherheitsrahmen (gilt für jeden Lauf, ohne Ausnahme)
 
