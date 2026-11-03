@@ -23,11 +23,11 @@ This is a hobby project, so I answer as fast as I can: expect a reply within a f
 
 ## Supported versions
 
-There is no release yet; the repository currently contains documentation and CI only. Once there are releases, the latest release and the current `main` are supported. Older versions are not maintained.
+The latest [release](https://github.com/BajKasum/promptprinter-pp/releases) and the current `main` are supported. Older versions are not maintained.
 
 ## Scope
 
-In scope is the code and the documentation in this repository. As the skill, the context script and the install script appear, these are examples of what counts:
+In scope is the code and the documentation in this repository: the skill, the context script and the install script. These are examples of what counts:
 
 - a secret that gets through the redaction into a context pack, a search result or a saved prompt
 - a command that writes or deletes files outside the folders it is meant to touch (path traversal, symbolic links, overwriting files that are not its own)
